@@ -47,19 +47,21 @@ jobs:
           cache: npm
           cache-dependency-path: target/package-lock.json
 
-      - name: Refresh lockfile for declared security override
+      - name: Refresh lockfile for security overrides
         working-directory: target
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Apply non-breaking npm security fixes
+      - name: Apply available non-breaking npm security fixes
         working-directory: target
-        run: npm audit fix --package-lock-only --omit=dev
+        shell: bash
+        run: |
+          npm audit fix --package-lock-only --omit=dev || true
 
       - name: Install dependencies exactly
         working-directory: target
         run: npm ci
 
-      - name: Persist non-breaking security lockfile updates
+      - name: Persist security lockfile updates
         working-directory: target
         shell: bash
         run: |
@@ -70,7 +72,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'Lockfile already current.'
           else
-            git commit -m 'security: refresh non-breaking dependency resolutions'
+            git commit -m 'security: refresh compatible dependency resolutions'
             git push origin HEAD:main
           fi
 
@@ -94,7 +96,7 @@ jobs:
         working-directory: target
         run: npx expo config --type public >/tmp/expo-config.json
 
-      - name: Audit production dependencies
+      - name: Gate High and Critical production dependency advisories
         working-directory: target
         run: npm audit --omit=dev --audit-level=high
 
@@ -114,4 +116,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# Verification revision: non-breaking dependency security remediation.
+# Verification revision: patched legacy-compatible image parser and glob matcher.
