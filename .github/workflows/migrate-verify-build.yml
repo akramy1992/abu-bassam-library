@@ -60,6 +60,21 @@ jobs:
           mkdir -p target/.github/workflows
           cp /tmp/migrate-verify-build.yml target/.github/workflows/migrate-verify-build.yml
 
+      - name: Commit migrated source snapshot
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+          else
+            git commit -m 'build: migrate audited Abu Bassam source snapshot'
+            git push origin HEAD:main
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -82,21 +97,6 @@ jobs:
       - name: Verify Expo configuration
         working-directory: target
         run: npx expo config --type public >/tmp/expo-config.json
-
-      - name: Commit migrated verified source
-        working-directory: target
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          if git diff --cached --quiet; then
-            echo 'No source changes to commit.'
-          else
-            git commit -m 'build: migrate audited Abu Bassam source'
-            git push origin HEAD:main
-          fi
 
       - name: Prepare Android project
         working-directory: target
