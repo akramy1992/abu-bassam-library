@@ -90,3 +90,5 @@ jobs:
           path: target/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+# Verification revision: restored trusted workflow assets.
