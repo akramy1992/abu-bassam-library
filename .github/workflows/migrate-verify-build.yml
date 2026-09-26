@@ -49,16 +49,14 @@ jobs:
           actual="$(git -C source rev-parse HEAD)"
           test "$actual" = "$SOURCE_COMMIT" || { echo "Source mismatch: $actual"; exit 1; }
 
-      - name: Copy full source without Git metadata
+      - name: Copy audited source
         shell: bash
         run: |
           set -euo pipefail
-          cp target/.github/workflows/migrate-verify-build.yml /tmp/migrate-verify-build.yml
           rsync -a --delete \
             --exclude '.git/' \
+            --exclude '.github/workflows/' \
             source/ target/
-          mkdir -p target/.github/workflows
-          cp /tmp/migrate-verify-build.yml target/.github/workflows/migrate-verify-build.yml
 
       - name: Commit migrated source snapshot
         working-directory: target
@@ -85,6 +83,14 @@ jobs:
       - name: Install dependencies exactly
         working-directory: target
         run: npm ci
+
+      - name: Diagnose JavaScript syntax
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check web/admin-permissions-runtime.js
+          node --check web/device-reconcile-runtime.js
 
       - name: Run strict project checks
         working-directory: target
