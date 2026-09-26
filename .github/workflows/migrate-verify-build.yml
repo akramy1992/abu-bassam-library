@@ -116,4 +116,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# Verification revision: patched legacy-compatible image parser and glob matcher.
+# Verification revision: run compatible image-size 1.x security fork and picomatch patch.
