@@ -30,6 +30,8 @@
     "react-native-webview": "13.15.0"
   },
   "overrides": {
-    "postcss": "8.5.23"
+    "postcss": "8.5.23",
+    "picomatch": "3.0.2",
+    "image-size": "npm:image-size-next@1.2.2"
   }
 }
