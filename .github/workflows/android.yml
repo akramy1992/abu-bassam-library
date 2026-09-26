@@ -1,0 +1,113 @@
+name: Android checks and build
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HAS_ANDROID_RELEASE_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Require production signing for distributable builds
+        if: ${{ github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          if [ "$HAS_ANDROID_RELEASE_KEY" != "true" ]; then
+            echo "Production release signing secrets are required for main/workflow_dispatch builds." >&2
+            exit 1
+          fi
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Check web application
+        run: npm run check:web
+
+      - name: Generate Android project and copy offline assets
+        env:
+          CI: "1"
+        run: npm run android:prebuild
+
+      - name: Configure existing release key
+        if: ${{ env.HAS_ANDROID_RELEASE_KEY == 'true' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release-key.p12
+          test -s android/app/release-key.p12
+          printf '\napply from: file("../../scripts/android-release-signing.gradle")\n' >> android/app/build.gradle
+
+      - name: Build standalone APK with embedded JS bundle
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ env.HAS_ANDROID_RELEASE_KEY == 'true' && format('{0}/android/app/release-key.p12', github.workspace) || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_TYPE: PKCS12
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Verify standalone APK contains React Native bundle
+        shell: bash
+        run: |
+          APK="$(ls android/app/build/outputs/apk/release/*.apk | head -n1)"
+          test -n "$APK"
+          test -s "$APK"
+          unzip -l "$APK" | grep -q 'assets/index.android.bundle'
+          BUNDLE_SIZE="$(unzip -p "$APK" assets/index.android.bundle | wc -c)"
+          test "$BUNDLE_SIZE" -gt 1000
+          echo "Embedded JS bundle size: $BUNDLE_SIZE bytes"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" > dist-signing-certificate.txt
+          test -s dist-signing-certificate.txt
+
+      - name: Prepare distributable APK
+        shell: bash
+        run: |
+          mkdir -p dist
+          APK="$(ls android/app/build/outputs/apk/release/*.apk | head -n1)"
+          cp "$APK" "dist/Abu_Bassam_Library_4.3.2.apk"
+          cp dist-signing-certificate.txt dist/SIGNING_CERTIFICATE.txt
+          if [ "$HAS_ANDROID_RELEASE_KEY" = "true" ]; then
+            printf 'signed-production-release-with-embedded-js\n' > dist/BUILD_TYPE.txt
+          else
+            printf 'pull-request-test-release-debug-key-with-embedded-js\n' > dist/BUILD_TYPE.txt
+          fi
+          test -s dist/Abu_Bassam_Library_4.3.2.apk
+          unzip -l dist/Abu_Bassam_Library_4.3.2.apk | grep -q 'assets/index.android.bundle'
+          sha256sum dist/Abu_Bassam_Library_4.3.2.apk > dist/SHA256.txt
+          ls -lh dist/Abu_Bassam_Library_4.3.2.apk
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: abu-bassam-android-${{ github.sha }}
+          path: |
+            dist/Abu_Bassam_Library_4.3.2.apk
+            dist/BUILD_TYPE.txt
+            dist/SHA256.txt
+            dist/SIGNING_CERTIFICATE.txt
+          if-no-files-found: error
+          retention-days: 14
