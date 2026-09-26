@@ -1,0 +1,101 @@
+name: Migrate, Verify and Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_REPO: ssakram134-cyber/abu-bassam-library
+
+jobs:
+  migrate-verify-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          path: target
+          fetch-depth: 0
+
+      - name: Validate migration token
+        shell: bash
+        env:
+          OLD_REPO_TOKEN: ${{ secrets.OLD_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$OLD_REPO_TOKEN" || { echo 'Missing OLD_REPO_TOKEN secret'; exit 1; }
+
+      - name: Checkout verified source repository
+        uses: actions/checkout@v4
+        with:
+          repository: ssakram134-cyber/abu-bassam-library
+          ref: 4f3ee3d1760af31060faeddb52d40be1fc8323f8
+          token: ${{ secrets.OLD_REPO_TOKEN }}
+          path: source
+          fetch-depth: 1
+
+      - name: Copy full source without Git metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -a --delete \
+            --exclude '.git/' \
+            --exclude '.github/workflows/migrate-verify-build.yml' \
+            source/ target/
+          mkdir -p target/.github/workflows
+          cp "$GITHUB_WORKSPACE/target/.github/workflows/migrate-verify-build.yml" /tmp/migrate-verify-build.yml 2>/dev/null || true
+          if [ -f /tmp/migrate-verify-build.yml ]; then
+            cp /tmp/migrate-verify-build.yml target/.github/workflows/migrate-verify-build.yml
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: target/package-lock.json
+
+      - name: Install dependencies exactly
+        working-directory: target
+        run: npm ci
+
+      - name: Run strict project checks
+        working-directory: target
+        run: npm run check:web
+
+      - name: Verify Expo configuration
+        working-directory: target
+        run: npx expo config --type public >/tmp/expo-config.json
+
+      - name: Commit migrated verified source
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+          else
+            git commit -m 'build: migrate verified Abu Bassam source'
+            git push origin HEAD:main
+          fi
+
+      - name: Prepare Android project
+        working-directory: target
+        run: npm run android:prebuild
+
+      - name: Build Android debug APK
+        working-directory: target/android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: abu-bassam-library-debug-apk
+          path: target/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
