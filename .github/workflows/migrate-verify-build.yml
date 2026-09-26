@@ -47,9 +47,32 @@ jobs:
           cache: npm
           cache-dependency-path: target/package-lock.json
 
+      - name: Refresh lockfile for declared security override
+        working-directory: target
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Apply non-breaking npm security fixes
+        working-directory: target
+        run: npm audit fix --package-lock-only --omit=dev
+
       - name: Install dependencies exactly
         working-directory: target
         run: npm ci
+
+      - name: Persist non-breaking security lockfile updates
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Lockfile already current.'
+          else
+            git commit -m 'security: refresh non-breaking dependency resolutions'
+            git push origin HEAD:main
+          fi
 
       - name: Check repaired JavaScript syntax
         working-directory: target
@@ -91,4 +114,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# Verification revision: restored trusted workflow assets.
+# Verification revision: non-breaking dependency security remediation.
