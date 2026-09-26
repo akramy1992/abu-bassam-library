@@ -21,57 +21,9 @@ jobs:
           path: target
           fetch-depth: 0
 
-      - name: Repair verified code defects
+      - name: Apply deterministic code repairs
         working-directory: target
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          admin = Path('web/admin-permissions-runtime.js')
-          text = admin.read_text(encoding='utf-8')
-          bad = "if(!t)return,text=String(t.textContent||'');"
-          good = "if(!t)return;const text=String(t.textContent||'');"
-          if bad in text:
-              text = text.replace(bad, good, 1)
-          elif good not in text:
-              raise SystemExit('Expected compressor syntax marker not found')
-          admin.write_text(text, encoding='utf-8')
-
-          device = Path('web/device-reconcile-runtime.js')
-          text = device.read_text(encoding='utf-8')
-          if "const DEVICE_TABLE='abu_bassam_devices';" not in text:
-              marker = "const LIMIT_KEY='abuBassamDeviceLimitV1';\n"
-              if marker not in text:
-                  raise SystemExit('Device limit marker not found')
-              text = text.replace(marker, marker + "const DEVICE_TABLE='abu_bassam_devices';\n", 1)
-
-          rows_pattern = re.compile(r"async function rows\(\)\{[^\n]*\}\nasync function count")
-          replacement = """async function rows(){if(!owner()||!client()||!connected())return[];const args=await ownerArgs(),c=client(),r=await c.rpc('abu_bassam_owner_devices',args);if(!r.error)return dedupe(r.data||[]);const fallback=await c.from(DEVICE_TABLE).select('device_id,device_name,model,platform,app_version,role,active,permissions,first_seen,last_seen').order('last_seen',{ascending:false}).limit(50);if(fallback.error)throw r.error;return dedupe(fallback.data||[])}
-async function count"""
-          if "c.from(DEVICE_TABLE).select(" not in text:
-              text, n = rows_pattern.subn(replacement, text, count=1)
-              if n != 1:
-                  raise SystemExit('Device rows function was not patched exactly once')
-
-          if 'function onSessionChanged()' not in text:
-              marker = 'function init(){'
-              if marker not in text:
-                  raise SystemExit('Device init marker not found')
-              helper = "function onSessionChanged(){setTimeout(()=>{patch();render();refreshLimitUi();syncSecurityCardLabel()},300)}\n"
-              text = text.replace(marker, helper + marker, 1)
-
-          old_listener = "document.addEventListener('abu-bassam-auth-changed',()=>setTimeout(()=>{patch();render();refreshLimitUi();syncSecurityCardLabel()},300));"
-          new_listener = "document.addEventListener('abu-bassam-auth-changed',onSessionChanged);window.AbuBassamCloud?.onSession?.(onSessionChanged);"
-          if old_listener in text:
-              text = text.replace(old_listener, new_listener, 1)
-          elif new_listener not in text:
-              raise SystemExit('Session listener marker not found')
-
-          device.write_text(text, encoding='utf-8')
-          PY
+        run: python3 tools/repair_migrated_source.py
 
       - name: Commit repaired code
         working-directory: target
@@ -99,7 +51,7 @@ async function count"""
         working-directory: target
         run: npm ci
 
-      - name: Check JavaScript syntax
+      - name: Check repaired JavaScript syntax
         working-directory: target
         shell: bash
         run: |
@@ -119,6 +71,10 @@ async function count"""
         working-directory: target
         run: npx expo config --type public >/tmp/expo-config.json
 
+      - name: Audit production dependencies
+        working-directory: target
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Prepare Android project
         working-directory: target
         run: npm run android:prebuild
@@ -126,10 +82,6 @@ async function count"""
       - name: Build Android debug APK
         working-directory: target/android
         run: ./gradlew assembleDebug --stacktrace
-
-      - name: Audit production dependencies
-        working-directory: target
-        run: npm audit --omit=dev --audit-level=high
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
