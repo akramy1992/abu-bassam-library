@@ -1,0 +1,32 @@
+{
+  "name": "abu-bassam-library-native",
+  "version": "4.3.2",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node scripts/patch-startup-stability.mjs && node scripts/patch-customer-camera.mjs && expo start",
+    "android": "node scripts/patch-startup-stability.mjs && node scripts/patch-customer-camera.mjs && expo run:android",
+    "android:prebuild": "node scripts/patch-startup-stability.mjs && node scripts/patch-customer-camera.mjs && expo prebuild --platform android --clean && npm run assets:android",
+    "assets:android": "node scripts/prepare-android-assets.mjs",
+    "build:apk:local": "node scripts/build-android-local.mjs",
+    "build:apk:release": "node scripts/build-android-local.mjs --require-release-key",
+    "check:web": "node scripts/patch-startup-stability.mjs && node scripts/patch-customer-camera.mjs && node tools/check_project.js && node tools/check_security_controls.js && node tools/check_latest_features.js && node tools/check_runtime_regressions.js && node tools/check_android_workflow.js && node tools/check_import_workflow.js && node tools/check_advanced_photo_print.js && node tools/check_image_compressor.js && node tools/check_settings_section.js && node tools/check_operation_log.js && node tools/check_notification_center.js && node tools/check_admin_permissions.js && node tools/check_cards_section_20260924.js && node tools/check_cards_hardening_latest.js && node tools/check_document_vault_advanced.js && node tools/check_branch_private_vault.js && node tools/check_customer_documents.js && node tools/check_questions_section.js && node tools/check_questions_final_fixes.js && node tools/check_no_global_flex.js",
+    "ios": "expo run:ios"
+  },
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "dependencies": {
+    "expo": "54.0.10",
+    "expo-camera": "17.0.8",
+    "expo-file-system": "19.0.24",
+    "expo-local-authentication": "~17.0.9",
+    "expo-print": "15.0.8",
+    "expo-screen-capture": "~8.0.10",
+    "expo-secure-store": "~15.0.8",
+    "expo-sharing": "14.0.8",
+    "react": "19.1.0",
+    "react-native": "0.81.4",
+    "react-native-webview": "13.15.0"
+  }
+}

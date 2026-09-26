@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "مكتبة أبو بسام",
+    "slug": "abu-bassam-library",
+    "version": "4.3.2",
+    "icon": "./assets/icon.png",
+    "orientation": "portrait",
+    "scheme": "abu-bassam-library",
+    "android": {
+      "package": "com.abubassam.librarycamera3",
+      "versionCode": 432,
+      "permissions": ["CAMERA", "INTERNET"],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#fffaf3"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "يحتاج تطبيق مكتبة أبو بسام إلى الكاميرا للمسح الضوئي وقراءة الباركود وتصوير المستندات."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "يستخدم تطبيق مكتبة أبو بسام المصادقة الحيوية لحماية تسجيل الدخول والبيانات."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "يستخدم تطبيق مكتبة أبو بسام المصادقة الحيوية لحماية بيانات تسجيل الدخول على هذا الجهاز."
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+(()=>{
+'use strict';
+if(window.__ABU_DOCUMENT_VAULT_PERMISSION_GUARD_V1__)return;
+window.__ABU_DOCUMENT_VAULT_PERMISSION_GUARD_V1__=true;
+let patched=false;
+const LABEL={vaultView:'عرض ملفات الحفظ',vaultEdit:'تعديل الملفات',vaultExport:'الحفظ والتصدير والطباعة'};
+function allowed(k){return window.AbuBassamBranchVault?.allowed?.(k)!==false}
+function scope(){return window.AbuBassamBranchVault?.localScopeOk?.(false)!==false}
+function deny(k){alert('هذه الصلاحية معطلة لهذا الفرع من قبل الأدمن: '+(LABEL[k]||k));return false}
+function wrap(api,name,perm){const fn=api?.[name];if(typeof fn!=='function'||fn.__abuVaultPermissionGuard)return;const w=function(...args){if(!scope())return alert('هذا الأرشيف المحلي يعود إلى فرع آخر على هذا الجهاز.');if(!allowed(perm))return deny(perm);return fn.apply(this,args)};w.__abuVaultPermissionGuard=true;w.__abuOriginal=fn;api[name]=w}
+function patch(){const v=window.DocumentVault;if(!v)return false;const pairs=[['saveActive','vaultExport'],['shareActive','vaultExport'],['saveGalleryActive','vaultExport'],['savePdfActive','vaultExport'],['printActive','vaultExport'],['saveEditorGallery','vaultExport'],['saveEditorPdf','vaultExport'],['printEditor','vaultExport'],['shareOcr','vaultExport'],['saveOcrText','vaultExport'],['saveOcrPdf','vaultExport'],['saveOcrWithImage','vaultExport'],['printOcr','vaultExport']];pairs.forEach(([n,p])=>wrap(v,n,p));patched=true;applyUi();return true}
+function applyUi(){const center=document.getElementById('vaultCenter');if(!center)return;let denied=document.getElementById('abuVaultViewDenied');const shell=center.querySelector('.v-shell');if(!scope()||!allowed('vaultView')){if(shell)shell.style.display='none';if(!denied){denied=document.createElement('div');denied.id='abuVaultViewDenied';denied.style.cssText='margin:18px;padding:24px;border-radius:16px;background:#fff1d7;color:#6d4a12;text-align:center;font-weight:900;line-height:1.9';center.appendChild(denied)}denied.textContent=!scope()?'🔒 هذا الأرشيف المحلي مرتبط بفرع آخر، لذلك تم حجبه بالكامل.':'🔒 الأدمن عطّل صلاحية عرض ملفات الحفظ لهذا الفرع.';return}if(shell)shell.style.display='';denied?.remove();const exportAllowed=allowed('vaultExport'),editAllowed=allowed('vaultEdit');document.querySelectorAll('#vViewModal .v-modal-actions button,#vEditModal .v-modal-actions button').forEach(b=>{const t=String(b.textContent||'');const isExport=/حفظ|PDF|طباعة|مشاركة|المعرض/.test(t),isEdit=/اعتماد|تعديل/.test(t);if(isExport){b.style.opacity=exportAllowed?'1':'.45';b.style.pointerEvents=exportAllowed?'':'none'}else if(isEdit){b.style.opacity=editAllowed?'1':'.45';b.style.pointerEvents=editAllowed?'':'none'}})}
+function boot(){let n=0,t=setInterval(()=>{n++;patch();applyUi();if(n>240)clearInterval(t)},100);new MutationObserver(()=>{patch();applyUi()}).observe(document.documentElement,{childList:true,subtree:true});document.addEventListener('abu-bassam-auth-changed',()=>setTimeout(applyUi,100));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(applyUi,50)})}
+window.AbuDocumentVaultPermissionGuard={patch,applyUi};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();

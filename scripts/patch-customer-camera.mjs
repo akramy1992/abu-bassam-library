@@ -1,0 +1,13 @@
+import { readFile, writeFile } from 'node:fs/promises';
+const path='index.js';
+let src=await readFile(path,'utf8');
+function once(from,to,label){if(src.includes(to))return;if(!src.includes(from))throw new Error(`customer camera patch failed: ${label}`);src=src.replace(from,to)}
+once("  const [cameraFacing, setCameraFacing] = useState('back');","  const [cameraFacing, setCameraFacing] = useState('back');\n  const [cameraFrameKind, setCameraFrameKind] = useState('paper');",'frame state');
+once("setCameraMode(null); setCameraReady(false); setCameraBusy(false); setBarcodeLocked(false); setTorch(false); setCameraFacing('back');","setCameraMode(null); setCameraReady(false); setCameraBusy(false); setBarcodeLocked(false); setTorch(false); setCameraFacing('back'); setCameraFrameKind('paper');",'reset frame');
+once("const openCamera = useCallback(async (mode) => {","const openCamera = useCallback(async (mode, frameKind = 'paper') => {",'openCamera signature');
+once("setCameraReady(false); setBarcodeLocked(false); setTorch(false); setCameraFacing('back');\n      setCameraMode(['barcode', 'maker', 'cardPhoto', 'ocr'].includes(mode) ? mode : 'scan');","setCameraReady(false); setBarcodeLocked(false); setTorch(false); setCameraFacing('back');\n      setCameraFrameKind(['card','photo','paper'].includes(frameKind) ? frameKind : 'paper');\n      setCameraMode(['barcode', 'maker', 'cardPhoto', 'ocr'].includes(mode) ? mode : 'scan');",'frame assignment');
+once("if (message.type === 'openCamera') return openCamera(message.mode);","if (message.type === 'openCamera') return openCamera(message.mode, message.frameKind);",'bridge frame kind');
+once("<View style={barcodeMode ? styles.barcodeFrame : styles.documentFrame} />","<View style={barcodeMode ? styles.barcodeFrame : cameraFrameKind === 'card' ? styles.cardDocumentFrame : cameraFrameKind === 'photo' ? styles.photoDocumentFrame : styles.documentFrame} />",'camera frame view');
+once("  documentFrame: { width: '91%', aspectRatio: 0.72, maxHeight: '66%', borderWidth: 3, borderColor: '#fff', borderRadius: 15, backgroundColor: '#00000010' },","  documentFrame: { width: '91%', aspectRatio: 0.72, maxHeight: '66%', borderWidth: 3, borderColor: '#fff', borderRadius: 15, backgroundColor: '#00000010' },\n  cardDocumentFrame: { width: '91%', aspectRatio: 1.585, maxHeight: '48%', borderWidth: 3, borderColor: '#21d3b7', borderRadius: 16, backgroundColor: '#00000010' },\n  photoDocumentFrame: { width: '72%', aspectRatio: 0.78, maxHeight: '62%', borderWidth: 3, borderColor: '#f4d36c', borderRadius: 22, backgroundColor: '#00000010' },",'frame styles');
+await writeFile(path,src);
+console.log('customer camera smart frames patched');

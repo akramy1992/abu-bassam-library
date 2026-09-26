@@ -1,0 +1,19 @@
+def releaseStore = System.getenv("ANDROID_KEYSTORE_FILE")
+if (releaseStore) {
+    android {
+        signingConfigs {
+            release {
+                storeFile file(releaseStore)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                storeType System.getenv("ANDROID_KEYSTORE_TYPE") ?: "PKCS12"
+            }
+        }
+        buildTypes {
+            release {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}

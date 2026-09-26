@@ -1,0 +1,24 @@
+node_modules/
+.expo/
+android/
+ios/
+dist/
+*.log
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+local.properties
+android/keystore.properties
+output/*.apk
+output/*.aab
+output/*.idsig
+__pycache__/
+*.pyc
+.DS_Store
+# Local QA/generated outputs
+output/
+tools/__pycache__/
+*.pyc
