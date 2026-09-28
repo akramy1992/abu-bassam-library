@@ -1,5 +1,5 @@
 from pathlib import Path
-import json,re
+import json
 ROOT=Path(__file__).resolve().parents[1]
 DOCS=ROOT/'docs'
 
@@ -11,6 +11,7 @@ stale=[
 'GLOBAL-FLEX-AUDIT-2026-09-21.md',
 'IMPLEMENTATION-PLAN-2026-09-21.md',
 'LATEST-FEATURE-AUDIT-2026-09-21.md',
+'RELEASE-CHECKLIST.md',
 'RELEASE-TEST-REPORT.md',
 'SECURITY-CONTROL-AUDIT-2026-09-21.md',
 'STRICT-AUDIT-2026-09-21.md',
@@ -22,7 +23,7 @@ for name in stale:
 
 master='''# PROJECT MASTER SPEC — مكتبة أبو بسام
 
-هذا المستند هو المرجع الحالي عالي المستوى للمشروع. لا تُستخدم تقارير التدقيق التاريخية أو خطط الإصدارات القديمة كمصدر متطلبات. عند التعارض يكون الكود الحالي و`AGENTS.md` وملفات المواصفات غير المؤرخة/المعتمدة في هذا المجلد هي المرجع.
+هذا المستند هو المرجع الحالي عالي المستوى للمشروع. لا تُستخدم تقارير التدقيق التاريخية أو خطط الإصدارات القديمة كمصدر متطلبات. عند التعارض يكون الكود الحالي و`AGENTS.md` وملفات المواصفات الحالية في هذا المجلد هي المرجع.
 
 ## الهوية
 - اسم التطبيق: مكتبة أبو بسام.
@@ -72,6 +73,21 @@ master='''# PROJECT MASTER SPEC — مكتبة أبو بسام
 مجلد `docs` يجب أن يحتوي فقط على مواصفات حالية قابلة للاعتماد. التاريخ محفوظ في Git ولا حاجة لإبقاء تقارير قديمة داخل الفرع الحالي إذا كانت قد تعيد متطلبات ملغاة أو متعارضة.
 '''
 (DOCS/'PROJECT-MASTER-SPEC.md').write_text(master,encoding='utf-8')
+
+# Remove wording that can be confused with the retired global input interception layer.
+for name,replacements in {
+    'CARDS-SECTION-DECISIONS-2026-09-24.md':[
+        ('- اللمس والسحب والتحجيم والدوران في محرر A4.','- السحب والتحجيم والدوران في محرر A4.')
+    ],
+    'CUSTOMER-DOCUMENTS-SPEC-2026-09-24.md':[
+        ('قصًا حرًا باللمس','قصًا حرًا بالسحب المباشر')
+    ]
+}.items():
+    p=DOCS/name
+    if p.exists():
+        s=p.read_text(encoding='utf-8')
+        for old,new in replacements:s=s.replace(old,new)
+        p.write_text(s,encoding='utf-8')
 
 check=r'''const fs=require('fs'),path=require('path');
 const docs=path.resolve(__dirname,'..','docs');
