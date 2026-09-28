@@ -1,0 +1,20 @@
+name: Verify documentation truth
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-documentation-truth.yml'
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'docs/**'
+      - 'tools/check_docs_current_state.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify current documentation has no unsupported completion claims
+        run: node tools/check_docs_current_state.js
