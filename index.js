@@ -115,6 +115,7 @@ function App() {
   const [torch, setTorch] = useState(false);
   const [cameraFacing, setCameraFacing] = useState('back');
   const [webReady, setWebReady] = useState(false);
+  const [webInstanceKey, setWebInstanceKey] = useState(0);
   const [startupAttempts, setStartupAttempts] = useState(0);
 
   const inject = useCallback((functionName, payload) => {
@@ -128,6 +129,13 @@ function App() {
   const closeCamera = useCallback(() => {
     setCameraMode(null); setCameraReady(false); setCameraBusy(false); setBarcodeLocked(false); setTorch(false); setCameraFacing('back');
   }, []);
+  const recoverWebRenderer = useCallback((didCrash = false) => {
+    closeCamera();
+    setWebReady(false);
+    setStartupAttempts(0);
+    setWebInstanceKey((value) => value + 1);
+    if (didCrash) Alert.alert('تمت استعادة التطبيق', 'تعطل محرك العرض الداخلي وتمت إعادة إنشائه تلقائيًا.');
+  }, [closeCamera]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -383,11 +391,13 @@ function App() {
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle={cameraMode ? 'light-content' : 'dark-content'} backgroundColor={cameraMode ? '#000000' : '#fffaf3'} />
       <WebView
-        ref={webRef} source={{ uri: APP_URL }} style={styles.webView} originWhitelist={['file://*','about:*']} javaScriptEnabled domStorageEnabled
+        key={webInstanceKey} ref={webRef} source={{ uri: APP_URL }} style={styles.webView} originWhitelist={['file://*','about:*']} javaScriptEnabled domStorageEnabled
         allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs mixedContentMode="never"
         setSupportMultipleWindows={false} mediaPlaybackRequiresUserAction={false}
         injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE} onMessage={onWebMessage} onShouldStartLoadWithRequest={onShouldStartLoadWithRequest} onLoadEnd={() => setWebReady(true)}
-        onError={() => Alert.alert('تعذر فتح التطبيق', 'أعد تشغيل التطبيق وحاول مرة أخرى.')}
+        onRenderProcessGone={(event) => recoverWebRenderer(!!event.nativeEvent?.didCrash)}
+        onContentProcessDidTerminate={() => recoverWebRenderer(true)}
+        onError={() => recoverWebRenderer(false)}
       />
       {!webReady && <View style={styles.loading}><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري فتح مكتبة أبو بسام…</Text></View>}
       {cameraMode && (
