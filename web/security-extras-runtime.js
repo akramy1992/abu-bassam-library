@@ -90,15 +90,6 @@ async function guardedLogin(){
   const gate=$('abuSecurityGate');await originalLogin();
   if(gate?.classList.contains('hide'))clearLoginFailures();else{const msg=String($('abuLoginError')?.textContent||'');if(msg&&!/جاري|الإنترنت|خدمة الدخول غير جاهزة/i.test(msg))recordLoginFailure()}
 }
-function installLoginThrottle(){
-  if(!window.AbuBassamSecurity?.login||!$('abuLoginBtn'))return false;
-  if($('abuLoginBtn').dataset.throttled==='1')return true;
-  originalLogin=window.AbuBassamSecurity.login;$('abuLoginBtn').onclick=guardedLogin;$('abuLoginBtn').dataset.throttled='1';
-  const pass=$('abuLoginPass');if(pass)pass.addEventListener('keydown',event=>{if(event.key!=='Enter')return;event.preventDefault();event.stopImmediatePropagation();guardedLogin()},true);
-  const remaining=loginRemaining();if(remaining>0)setLoginMessage(`الدخول متوقف مؤقتًا. حاول بعد ${formatSeconds(remaining)}.`);
-  return true
-}
-
 async function changePassword(){
   if(!isOwner())return alert('تغيير كلمة مرور الحساب متاح للجهاز الرئيسي فقط.');
   const c=window.AbuBassamCloud?.client;if(!c)return alert('خدمة الحساب غير جاهزة.');
@@ -146,22 +137,17 @@ async function render(){
   const privacy=$('abuPrivacyMode');if(privacy)privacy.checked=privacyEnabled();const info=$('abuSnapshotInfo');if(info)info.textContent='آخر نقطة أمان: '+snapshotInfo();
   const owner=isOwner();document.querySelectorAll('#abuSecurityExtrasSettings button:not([onclick*="logout"])').forEach(button=>{if(!owner){button.disabled=true;button.style.opacity='.45'}})
 }
-function inject(){render();new MutationObserver(()=>{if(document.querySelector('#abuSettingsModal .abu-settings-body')&&!$('abuSecurityExtrasSettings'))render()}).observe(document.body,{childList:true,subtree:true})}
+function inject(){render()}
 
-function dangerousTarget(target){
-  if(!target)return'';const onclick=String(target.getAttribute?.('onclick')||'');
-  if(target.id==='opsClear'||/resetDefaults|resetData|removeDevice\(/.test(onclick))return target.id==='opsClear'?'مسح سجل العمليات':/removeDevice/.test(onclick)?'حذف جهاز موثوق':'إعادة ضبط بيانات أو إعدادات';
-  return''
-}
-function guardDanger(){document.addEventListener('click',async event=>{const target=event.target?.closest?.('button,[role="button"]');if(!target||target===bypassTarget)return;const reason=dangerousTarget(target);if(!reason)return;if(!isOwner())return;event.preventDefault();event.stopImmediatePropagation();if(await verifyDangerPin(reason)){bypassTarget=target;try{target.click()}finally{setTimeout(()=>{bypassTarget=null},0)}}},true)}
-
+function wrapDangerApi(obj,name,reason){const fn=obj?.[name];if(typeof fn!=='function'||fn.__abuDangerPinGuard)return;const wrapped=async function(...args){if(isOwner()&&!(await verifyDangerPin(reason)))return false;return fn.apply(this,args)};wrapped.__abuDangerPinGuard=true;wrapped.__abuOriginal=fn;obj[name]=wrapped}
+function installDangerApiGuards(){wrapDangerApi(window.AbuBassamSecurity,'removeDevice','حذف جهاز موثوق');wrapDangerApi(window.AbuBassamSettings,'resetDefaults','إعادة ضبط الإعدادات');wrapDangerApi(window.CardsStudio,'resetData','إعادة ضبط بيانات البطاقات');wrapDangerApi(window.AbuBassamOps,'clear','مسح سجل العمليات')}
 function installTypographyApplyShim(){
   const timer=setInterval(()=>{const t=window.AbuBassamTypography;if(!t)return;if(typeof t.applyApp!=='function')t.applyApp=()=>{let state={};try{state=JSON.parse(localStorage.getItem('abuBassamTypographyV5')||'{}')}catch(e){}if(state.appFont)t.global('appFont',state.appFont);if(state.appScale)t.global('appScale',state.appScale)};clearInterval(timer)},400);
   setTimeout(()=>clearInterval(timer),15000)
 }
 function startSnapshots(){createSnapshot(false);clearInterval(snapshotTimer);snapshotTimer=setInterval(()=>{if(document.visibilityState!=='hidden')createSnapshot(false)},10*60*1000);window.addEventListener('pagehide',()=>createSnapshot(false));document.addEventListener('visibilitychange',()=>{visibilityPrivacy();if(document.visibilityState==='hidden')createSnapshot(false)})}
 
-async function boot(){privacyCover();inject();guardDanger();installTypographyApplyShim();startSnapshots();const loginTimer=setInterval(()=>{if(installLoginThrottle())clearInterval(loginTimer)},200);setTimeout(()=>clearInterval(loginTimer),15000);await applyPrivacy(privacyEnabled());render()}
-window.AbuBassamSecurityExtras={setPin:setDangerPin,removePin:removeDangerPin,verifyDangerPin,changePassword,logout,snapshot:()=>createSnapshot(true),restore:restoreSnapshot,privacy:applyPrivacy,render,guardedLogin};
+async function boot(){privacyCover();inject();installDangerApiGuards();installTypographyApplyShim();startSnapshots();document.addEventListener('abu-bassam-settings-opened',render,{passive:true});document.addEventListener('abu-bassam-auth-changed',()=>{render();installDangerApiGuards()},{passive:true});window.addEventListener('pageshow',()=>{render();installDangerApiGuards()},{passive:true});[150,600,1500].forEach(ms=>setTimeout(installDangerApiGuards,ms));await applyPrivacy(privacyEnabled());render()}
+window.AbuBassamSecurityExtras={setPin:setDangerPin,removePin:removeDangerPin,verifyDangerPin,changePassword,logout,snapshot:()=>createSnapshot(true),restore:restoreSnapshot,privacy:applyPrivacy,render};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();

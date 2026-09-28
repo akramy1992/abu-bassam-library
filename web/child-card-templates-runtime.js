@@ -242,8 +242,12 @@ function init(){
   tryPatch();
   let attempts=0;
   const timer=setInterval(()=>{attempts+=1;tryPatch();if((window.CardsStudio&&window.AbuBassamTypography)||attempts>80)clearInterval(timer)},50);
-  const observer=new MutationObserver(()=>{if(window.CardsStudio?.currentType?.()==='child'){markCards();if(!document.getElementById('abuChildTemplatePicker'))installPicker()}});
-  observer.observe(document.documentElement,{childList:true,subtree:true});
+  const refreshChildUi=()=>{if(window.CardsStudio?.currentType?.()==='child'){markCards();if(!document.getElementById('abuChildTemplatePicker'))installPicker()}};
+  document.addEventListener('abu-bassam-section-opened',refreshChildUi,{passive:true});
+  document.addEventListener('abu-bassam-auth-changed',refreshChildUi,{passive:true});
+  window.addEventListener('pageshow',refreshChildUi,{passive:true});
+  window.addEventListener('focus',refreshChildUi,{passive:true});
+  [120,500,1400].forEach(ms=>setTimeout(refreshChildUi,ms));
 }
 
 window.AbuBassamChildTemplates={select:selectTemplate,current,list:()=>TEMPLATES.map(t=>({...t})),refresh,version:1};
