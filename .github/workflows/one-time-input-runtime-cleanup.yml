@@ -5,6 +5,7 @@ on:
     paths:
       - 'tools/one-time-input-runtime-cleanup.py'
       - 'tools/one-time-global-observer-cleanup.py'
+      - 'tools/one-time-last-observer-cleanup.py'
       - '.github/workflows/one-time-input-runtime-cleanup.yml'
   workflow_dispatch:
 permissions:
@@ -20,12 +21,29 @@ jobs:
         run: python3 tools/one-time-input-runtime-cleanup.py
       - name: Replace document-wide runtime observers
         run: python3 tools/one-time-global-observer-cleanup.py
+      - name: Remove final three document-wide observers
+        run: python3 tools/one-time-last-observer-cleanup.py
       - name: Verify input and crash stability
         run: node tools/check_input_and_crash_stability.js
+      - name: Verify JavaScript syntax
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),path=require('path'),vm=require('vm');
+          let failed=false;
+          for(const file of fs.readdirSync('web').filter(f=>f.endsWith('.js'))){
+            try{new vm.Script(fs.readFileSync(path.join('web',file),'utf8'),{filename:file});}
+            catch(e){failed=true;console.error(file+': '+e.message);}
+          }
+          if(failed)process.exit(1);
+          console.log('All web JavaScript files compile successfully.');
+          NODE
+      - name: Verify package json
+        run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package.json valid')"
       - name: Remove one-time cleanup files
         run: |
           rm -f tools/one-time-input-runtime-cleanup.py
           rm -f tools/one-time-global-observer-cleanup.py
+          rm -f tools/one-time-last-observer-cleanup.py
           rm -f .github/workflows/one-time-input-runtime-cleanup.yml
       - name: Commit corrected runtime
         run: |
