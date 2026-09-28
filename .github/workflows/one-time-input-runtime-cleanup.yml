@@ -30,3 +30,4 @@ jobs:
           git add -A
           git commit -m 'fix: remove legacy touch handlers and global runtime interception'
           git push origin main
+# one-time trigger
