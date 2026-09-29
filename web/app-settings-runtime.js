@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id);
-const APP_VERSION='4.3.2',BUILD_NUMBER='432',RELEASE_DATE='2026-09-20';
+const APP_VERSION='6.0.0',BUILD_NUMBER='600',RELEASE_DATE='2026-09-29';
 const APP_NAME='مكتبة أبو بسام',LIBRARY_NAME='مكتبة أبو بسام للتصوير والقرطاسية';
 const PROGRAMMER='أكرم حاتم الغزالي',PHONE='07829667521';
 const AUTO_SYNC_KEY='abuBassamVaultAutoSyncV4',SYNC_POLICY_KEY='abuBassamSyncPolicyV5',WA_KEY='abuBassamWhatsAppSettingsV5';
@@ -66,7 +66,7 @@ function saveSettingsBackup(){let json=JSON.stringify(safeSettings(),null,2),dat
 function resetDefaults(){if(!confirm('سيتم حفظ نسخة أمان ثم استعادة إعدادات المظهر والخطوط والطباعة. لن تُحذف الصور أو المستندات. هل تريد المتابعة؟'))return;saveSettingsBackup();['theme','abuBassamPrintSettingsV1','abuBassamTypographyV5','abuBassamCustomFontsV5',SYNC_POLICY_KEY,WA_KEY].forEach(key=>localStorage.removeItem(key));if(window.AbuBassamTypography)AbuBassamTypography.resetAll(true);if(typeof window.applyTheme==='function')applyTheme('default');loadControls();renderThemes();log('استعادة الإعدادات الافتراضية');alert('تمت استعادة الإعدادات. بقيت ملفاتك وبياناتك محفوظة.')}
 function copyVersion(){let text=`${APP_NAME}\n${LIBRARY_NAME}\nالمصمم والمبرمج: ${PROGRAMMER}\n${PHONE}\nVersion ${APP_VERSION} • Build ${BUILD_NUMBER}\n${RELEASE_DATE}`;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(()=>alert('تم نسخ معلومات الإصدار ✓'));else{let area=document.createElement('textarea');area.value=text;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();alert('تم نسخ معلومات الإصدار ✓')}}
 function moveArchive(){let existing=$('telegramArchiveCard'),slot=$('abuArchiveSlot');if(existing&&slot)slot.appendChild(existing)}
-function addStamps(){['.app .panel','#nationalCenter','#cardsCenter','#vaultCenter','#questionsCenter','#compressorCenter'].forEach(selector=>{let parent=document.querySelector(selector);if(!parent||parent.querySelector(':scope > .abu-programmer-stamp'))return;let stamp=document.createElement('div');stamp.className='abu-programmer-stamp';stamp.textContent='المصمم والمبرمج: '+PROGRAMMER+' • الإصدار '+APP_VERSION;parent.appendChild(stamp)})}
+function addStamps(){['.app .panel','#nationalCenter','#cardsCenter','#vaultCenter'].forEach(selector=>{let parent=document.querySelector(selector);if(!parent||parent.querySelector(':scope > .abu-programmer-stamp'))return;let stamp=document.createElement('div');stamp.className='abu-programmer-stamp';stamp.textContent='المصمم والمبرمج: '+PROGRAMMER+' • الإصدار '+APP_VERSION;parent.appendChild(stamp)})}
 function build(){addCss();document.body.insertAdjacentHTML('beforeend',html());moveArchive();let modal=$('abuSettingsModal');modal.addEventListener('click',event=>{if(event.target===modal)close()});let button=document.querySelector('.top-actions .icon-btn');if(button){button.textContent='⚙️';button.title='الإعدادات';button.onclick=open}renderThemes();loadControls();addStamps();setTimeout(addStamps,500)}
 window.AbuBassamSettings={open,close,search,theme,contact,fonts,operations,cardsHistory,backup,sync,cloudLogin,autoSync,syncPolicy,saveWhatsApp,google,googleInfo,printSettings,openCards,systemSettings,refreshDeviceInfo,storage,cleanCache,devices,copyVersion,resetDefaults,version:APP_VERSION,build:BUILD_NUMBER,programmer:PROGRAMMER};
 window.openSettings=open;

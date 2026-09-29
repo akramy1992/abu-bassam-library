@@ -3,7 +3,7 @@
   const DEVICE_ID_KEY = 'abuBassamLockedDeviceIdV3';
   const DEVICE_NAME_KEY = 'abuBassamLockedDeviceNameV3';
   const DEVICE_CREATED_KEY = 'abuBassamLockedDeviceCreatedV3';
-  const APP_VERSION = '4.3.2';
+  const APP_VERSION = '6.0.0';
 
   function uuid() { return globalThis.crypto?.randomUUID?.() || `device-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
   function platform() { const agent=navigator.userAgent||''; if(/Android/i.test(agent))return'Android';if(/Windows/i.test(agent))return'Windows';if(/iPhone|iPad/i.test(agent))return'iOS';return'جهاز آخر'; }

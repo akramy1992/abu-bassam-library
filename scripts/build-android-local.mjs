@@ -8,6 +8,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const win = process.platform === 'win32';
 const requireReleaseKey = process.argv.includes('--require-release-key');
+const appConfig = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'));
+const appVersion = String(appConfig?.expo?.version || '').trim();
+if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(appVersion)) throw new Error('Invalid app version in app.json');
+const apkFileName = `Abu_Bassam_Library_${appVersion}.apk`;
 const signingVars = ['ANDROID_KEYSTORE_FILE','ANDROID_KEYSTORE_PASSWORD','ANDROID_KEY_ALIAS','ANDROID_KEY_PASSWORD'];
 
 function run(cmd, args, cwd = root, env = process.env) {
@@ -143,10 +147,10 @@ try {
   console.log('6/6 Preparing distributable files...');
   const dist = path.join(root, 'dist');
   fs.mkdirSync(dist, { recursive: true });
-  const out = path.join(dist, 'Abu_Bassam_Library_4.3.2.apk');
+  const out = path.join(dist, apkFileName);
   fs.copyFileSync(apk, out);
   const hash = sha256(out);
-  fs.writeFileSync(path.join(dist, 'SHA256.txt'), `${hash}  Abu_Bassam_Library_4.3.2.apk\n`);
+  fs.writeFileSync(path.join(dist, 'SHA256.txt'), `${hash}  ${apkFileName}\n`);
   fs.writeFileSync(path.join(dist, 'SIGNING_CERTIFICATE.txt'), certificate);
   fs.writeFileSync(path.join(dist, 'BUILD_TYPE.txt'), customSigning ? 'signed-production-release-with-embedded-js\n' : 'local-test-release-default-key-with-embedded-js\n');
   if (requireReleaseKey && !customSigning) throw new Error('Refusing to mark an unsigned/test APK as a production release');

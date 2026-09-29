@@ -37,7 +37,9 @@ need(assets,'tesseract.js@5.1.1/dist/tesseract.min.js','pinned Tesseract browser
 need(assets,'tesseract.js-core@5.1.1','pinned Tesseract core');
 need(assets,'ara.traineddata.gz','Arabic trained data');
 need(assets,'eng.traineddata.gz','English trained data');
-need(assets,'Offline OCR assets (Arabic + English) are embedded','offline OCR packaging confirmation');
+need(assets,".cache', 'ocr-tesseract-v5.1.1",'OCR cache outside source tree');
+need(assets,"cp(cacheRoot,resolve(destination,'vendor','tesseract')",'OCR cache copied into Android assets');
+need(assets,'Failed to prepare pinned OCR asset','OCR download failure is explicit');
 need(encrypted,"AES-GCM",'AES-GCM encrypted private vault');
 need(encrypted,"PBKDF2",'password based key derivation');
 need(encrypted,'250000','PBKDF2 work factor');
