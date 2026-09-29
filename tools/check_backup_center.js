@@ -1,0 +1,16 @@
+const fs=require('fs'),vm=require('vm');
+const read=p=>{if(!fs.existsSync(p))throw new Error('missing '+p);return fs.readFileSync(p,'utf8')};
+const need=(s,t,l)=>{if(!s.includes(t))throw new Error(`backup center check failed: ${l}`)};
+const forbid=(s,t,l)=>{if(s.includes(t))throw new Error(`backup center check failed: ${l}`)};
+const runtime=read('web/backup-center-runtime.js'),loader=read('web/device-name-runtime.js'),edge=read('supabase/functions/backup-center/index.ts'),migration=read('supabase/migrations/202609260001_backup_center.sql'),state=read('supabase/migrations/202609260002_backup_snapshot_state.sql'),deny=read('supabase/migrations/202609260003_backup_metadata_direct_deny.sql');
+new vm.Script(runtime,{filename:'backup-center-runtime.js'});
+for(const marker of ['__ABU_BACKUP_CENTER_V1__','AbuBassamDocumentVaultV4','CHUNK=5*1024*1024','MAX_ZIP=120*1024*1024','crypto.subtle.digest','fingerprint()','part_count:parts','uploadToSignedUrl','backup_kind:kind','pre_restore','retention()','backupCreate','backupRestore','backupDelete','SECURE_STORAGE_REQUIRED',"typeof restore!=='function'",'خدمة الاستعادة الآمنة غير جاهزة','visibilitychange','abu-bassam-auth-changed','15*60*1000','آخر 30 نسخة'])need(runtime,marker,marker);
+forbid(runtime,'__dev_secure_','backup center must never read the device secret from localStorage');
+for(const marker of ['loadBackupCenter','backup-center-runtime.js','__ABU_BACKUP_CENTER_V1__','setTimeout(loadBackupCenter,120)'])need(loader,marker,'loader '+marker);
+for(const marker of ["const TABLE='abu_bassam_backups'","const MAX_BYTES=512*1024*1024","MAX_PARTS=120","createSignedUploadUrl","upload","commit","BACKUP_PART_MISSING","BACKUP_SIZE_MISMATCH","createSignedUrl","backupCreate","backupRestore","backupDelete","branch_device_id","ready',true","retention","cleanupPending"])need(edge,marker,'edge '+marker);
+for(const marker of ['create table if not exists public.abu_bassam_backups','enable row level security','revoke all on table public.abu_bassam_backups from public,anon,authenticated','backup-vault','alter policy abu_bassam_storage_no_direct_vault_select','alter policy abu_bassam_storage_no_direct_vault_insert','alter policy abu_bassam_storage_no_direct_vault_update','alter policy abu_bassam_storage_no_direct_vault_delete'])need(migration,marker,'migration '+marker);
+for(const marker of ['ready boolean not null default false','committed_at timestamptz','abu_bassam_backups_pending_idx'])need(state,marker,'state '+marker);
+for(const marker of ['abu_bassam_backups_direct_deny','as restrictive','for all','to anon,authenticated','using (false)','with check (false)'])need(deny,marker,'direct deny '+marker);
+forbid(runtime,'service_role','client must not contain service role marker');
+forbid(runtime,'SUPABASE_SERVICE_ROLE_KEY','client must not contain server key');
+console.log('backup center checks passed: native SecureStore is required for device secrets, restore service availability is explicit, automatic changed-only snapshots use 5MB multipart uploads with SHA-256 integrity, branch scope, retention, safe pre-restore snapshot, pending/ready state, gateway-only Storage, and direct metadata denial.');

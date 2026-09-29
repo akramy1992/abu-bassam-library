@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>صياغة الأسئلة العربية | مكتبة أبو بسام</title>
+    <style>
+        @font-face { font-family: 'Tajawal'; src: url('fonts/Tajawal-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+        @font-face { font-family: 'Tajawal'; src: url('fonts/Tajawal-Bold.ttf') format('truetype'); font-weight: 700 900; font-display: swap; }
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            box-sizing: border-box;
+        }
+
+        /* هذا الكود يمنع ميزة "السحب للأسفل لإعادة التحميل" في متصفحات الموبايل نهائياً */
+        html, body {
+            overscroll-behavior-y: none; 
+        }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #ebf0f5; 
+            margin: 0;
+            padding: 0;
+            -webkit-text-size-adjust: 100%; 
+            overflow-x: hidden; 
+        }
+
+        /* شريط الأدوات العلوي */
+        .controls-bar {
+            position: fixed; 
+            top: 0; left: 0; width: 100%; background-color: #2c3e50;
+            padding: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; 
+            z-index: 2000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .btn {
+            padding: 6px 8px; border: none; border-radius: 6px; font-size: 11px; cursor: pointer;
+            font-family: 'Tajawal', sans-serif; font-weight: bold; color: white;
+            flex-grow: 1; max-width: 120px; text-align: center; transition: 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-print { background-color: #27ae60; }
+        .btn-add-page { background-color: #2980b9; }
+        .btn-add-q { background-color: #d35400; } 
+        .btn-img { background-color: #e67e22; }
+        .btn-add-sign { background-color: #16a085; } 
+        .btn-add-banner { background-color: #8e44ad; } 
+        .btn-undo { background-color: #34495e; }
+
+        #workspace {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-bottom: 20px;
+        }
+
+        #pages-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            transform-origin: top center; 
+            transition: transform 0.1s ease;
+        }
+
+        /* الورقة الأساسية (إزالة الفراغ السفلي المخصص للفوتر) */
+        .a4-page {
+            width: 794px; 
+            min-height: 1123px; 
+            background-color: white;
+            border: 12px solid transparent;
+            border-image: linear-gradient(to bottom right, #f8c291, #82ccdd, #f8a5c2, #b8e994) 1;
+            padding: 20px; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.6);
+            position: relative; 
+            background-image: url('data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="%23e0e0e0"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grid)"/></svg>');
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+
+        [contenteditable="true"] { 
+            outline: none; 
+            cursor: text;
+            font-size: 16px !important; 
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        [contenteditable="true"]:focus { background-color: rgba(255, 255, 0, 0.15); border-radius: 5px; }
+
+        /* الترويسة العلوية */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; width: 100%; }
+        .header-box { text-align: center; line-height: 1.5; width: 30%; }
+        .header-center { text-align: center; color: #1a237e; line-height: 1.4; width: 40%;}
+        .header-center .title { color: #000080; font-size: 22px !important; font-weight: 800; }
+        
+        /* شريط الملاحظة */
+        .note-wrapper { position: relative; margin: 5px 0 15px 0; width: 100%; }
+        .note-bar {
+            background: linear-gradient(to left, #1e3c72, #2a5298); color: white; text-align: center;
+            padding: 6px; border-radius: 20px; font-weight: bold; border: 2px solid #ffcc00; position: relative; font-size: 16px;
+        }
+        .note-bar::before, .note-bar::after { content: '⭐'; position: absolute; top: 50%; transform: translateY(-50%); }
+        .note-bar::before { right: 15px; } .note-bar::after { left: 15px; }
+
+        /* منطقة الأسئلة */
+        .questions-area { flex-grow: 1; width: 100%; }
+        .question-container {
+            border: 2.5px solid; border-radius: 12px; padding: 25px 15px 15px 15px; 
+            margin-bottom: 15px; position: relative; background-color: white;
+            font-weight: 700; line-height: 1.6; font-size: 15px; width: 100%;
+            page-break-inside: avoid; 
+        }
+        .q-title {
+            position: absolute; top: -14px; right: 15px; padding: 2px 15px; border-radius: 15px;
+            color: white; font-weight: bold; border: 2px solid white; display: flex; align-items: center; gap: 5px; font-size: 14px;
+        }
+
+        /* 15 لون مختلف للأسئلة */
+        .q1 { border-color: #ff9f43; } .q1 .q-title { background-color: #ff9f43; }
+        .q2 { border-color: #ff4d6d; } .q2 .q-title { background-color: #ff4d6d; }
+        .q3 { border-color: #10ac84; } .q3 .q-title { background-color: #10ac84; }
+        .q4 { border-color: #5f27cd; } .q4 .q-title { background-color: #5f27cd; }
+        .q5 { border-color: #0abde3; } .q5 .q-title { background-color: #0abde3; }
+        .q6 { border-color: #f368e0; } .q6 .q-title { background-color: #f368e0; }
+        .q7 { border-color: #2980b9; } .q7 .q-title { background-color: #2980b9; }
+        .q8 { border-color: #8e44ad; } .q8 .q-title { background-color: #8e44ad; }
+        .q9 { border-color: #c0392b; } .q9 .q-title { background-color: #c0392b; }
+        .q10 { border-color: #16a085; } .q10 .q-title { background-color: #16a085; }
+        .q11 { border-color: #f39c12; } .q11 .q-title { background-color: #f39c12; }
+        .q12 { border-color: #d35400; } .q12 .q-title { background-color: #d35400; }
+        .q13 { border-color: #27ae60; } .q13 .q-title { background-color: #27ae60; }
+        .q14 { border-color: #34495e; } .q14 .q-title { background-color: #34495e; }
+        .q15 { border-color: #7f8c8d; } .q15 .q-title { background-color: #7f8c8d; }
+
+        .grid-4-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; text-align: right; }
+        .text-area { width: 100%; margin-top: 10px; display: block; text-align: right; min-height: 50px; }
+
+        /* أزرار التحكم بالأسئلة والملاحظات */
+        .action-btns { position: absolute; top: 5px; left: 10px; display: flex; gap: 5px; z-index: 10; }
+        .action-btns button {
+            background: #f1f2f6; border: 1px solid #ced6e0; border-radius: 5px; cursor: pointer;
+            padding: 5px; transition: 0.2s; font-size: 12px;
+        }
+        .action-btns button:hover { background: #dfe4ea; transform: scale(1.1); }
+        .del-note-btn { position: absolute; top: -15px; left: -10px; background: #e74c3c; color: white; border:none; border-radius:50%; width: 20px; height:20px; cursor:pointer; font-weight: bold; z-index: 10; font-size: 12px; display: flex; align-items: center; justify-content: center;}
+        .btn-del-page { position: absolute; top: 10px; left: 10px; background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; z-index: 10; font-family: 'Tajawal', sans-serif;}
+
+        /* === العناصر القابلة للسحب (صورة، دعاء، توقيع) === */
+        .draggable-item { position: absolute; z-index: 100; border: 2px dashed #aaa; padding: 5px; border-radius: 10px; background-color: rgba(255,255,255,0.85); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .draggable-item:hover { border-color: #3498db; }
+        
+        /* أيقونة السحب الجديدة (✥) */
+        .drag-move-handle { 
+            position: absolute; top: -15px; left: -15px; width: 30px; height: 30px; 
+            background-color: #f39c12; color: white; border-radius: 50%; 
+            text-align: center; line-height: 30px; cursor: move; font-size: 18px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 101; 
+        }
+        
+        /* أيقونات التحكم بالصور والعناصر */
+        .img-controls { position: absolute; top: -35px; right: -10px; display: flex; gap: 5px; z-index: 101; }
+        .img-btn { background: white; border: 1px solid #ccc; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);}
+        .img-resize-handle { position: absolute; bottom: -15px; left: -15px; width: 30px; height: 30px; background-color: #2980b9; color: white; border-radius: 50%; text-align: center; line-height: 30px; cursor: nwse-resize; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 101;}
+
+        .img-wrapper { width: 150px; height: 150px; padding: 0; background: transparent; }
+        .img-wrapper img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; border-radius: 10px;}
+        
+        /* تنسيق الدعاء والتوقيع المضاف */
+        .banner-wrapper { width: 350px; min-height: 45px; }
+        .banner-bar { background: linear-gradient(to left, #5f27cd, #341f97); color: white; text-align: center; padding: 6px; border-radius: 20px; font-weight: bold; border: 2px solid #ffcc00; font-size: 16px; width: 100%; }
+        
+        .sign-wrapper { width: 180px; min-height: 60px; background: transparent; border-color: transparent; box-shadow: none;}
+        .sign-wrapper:hover { border-color: #ccc; }
+        .teacher-sign { text-align: center; line-height: 1.5; font-weight: bold; color: #333; font-size: 16px;}
+        .teacher-sign div:first-child { color: #1e3c72; border-bottom: 1px dashed #ccc; padding-bottom: 2px; margin-bottom: 2px;}
+
+        /* اسم المبرمج الثابت (يبقى في الزاوية) */
+        .programmer-name { position: absolute; bottom: 20px; right: 20px; font-size: 12px !important; color: #666; font-weight: bold; text-align: right; }
+
+        /* إعدادات الطباعة الدقيقة لإخفاء الأزرار والمربعات المزعجة */
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { background-color: white; overflow: visible; margin: 0; }
+            .controls-bar { display: none !important; }
+            #workspace { margin-top: 0 !important; padding: 0 !important; }
+            #pages-container { padding: 0; gap: 0; display: block; transform: none !important; }
+            .a4-page { 
+                width: 794px !important; 
+                min-height: 1123px !important;
+                margin: 0; 
+                box-shadow: none; 
+                page-break-after: always; 
+                padding: 20px !important; 
+                border-width: 8px; 
+            }
+            .question-container { margin-bottom: 10px; padding: 25px 15px 10px 15px; page-break-inside: avoid; }
+            .note-wrapper { margin: 5px 0 10px 0; }
+            .btn-del-page, .action-btns, .del-note-btn, .img-controls, .img-resize-handle, .drag-move-handle { display: none !important; }
+            .draggable-item { border: none !important; background: transparent !important; box-shadow: none !important;}
+            .programmer-name { display: none !important; } 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls-bar" id="controls">
+        <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleAddImage(event)">
+        <button class="btn btn-img" onclick="document.getElementById('imageInput').click()">🖼️ صورة</button>
+        <button class="btn btn-add-q" onclick="addQuestion()">📝 سؤال</button>
+        <button class="btn btn-add-page" onclick="addNewPage()">➕ صفحة</button>
+        <button class="btn btn-add-banner" onclick="addDraggableBanner()">🌟 دعاء</button>
+        <button class="btn btn-add-sign" onclick="addDraggableSign()">✍️ توقيع</button>
+        <button class="btn btn-undo" onclick="undoAction()">↩️ تراجع</button>
+        <button class="btn btn-undo" onclick="saveQuestionDraft(true)">💾 حفظ</button>
+        <button class="btn btn-print" onclick="saveQuestionPdf()">📄 PDF</button>
+        <button class="btn btn-print" onclick="printQuestionExam()">🖨️ طباعة</button>
+        <button class="btn btn-undo" onclick="resetQuestionDraft()">🆕 جديد</button>
+    </div>
+
+    <div id="workspace">
+        <div id="pages-container">
+            
+            <div class="a4-page" id="main-page">
+                
+                <div class="header" id="main-header">
+                    <div class="header-box" contenteditable="true">إدارة : .....................<br>مدرسة الجود الابتدائية<br>للبنين</div>
+                    <div class="header-center" contenteditable="true"><span class="title">امتحان نصف السنة</span><br>الدور الاول<br>للعام ٢٠٢٦ - ٢٠٢٧</div>
+                    <div class="header-box" contenteditable="true">الصف / السادس<br>المادة / العلوم<br>التاريخ / .................</div>
+                </div>
+
+                <div class="note-wrapper" id="note-section">
+                    <button class="del-note-btn" onclick="hideElement(this)" title="حذف الملاحظة">✖</button>
+                    <div class="note-bar" contenteditable="true">ملاحظة / الإجابة عن خمسة اسئلة فقط لكل سؤال ٢٠ درجة</div>
+                </div>
+
+                <div class="questions-area">
+                    <div class="question-container q1">
+                        <div class="action-btns">
+                            <button onclick="moveUp(this)">⬆️</button><button onclick="moveDown(this)">⬇️</button>
+                            <button onclick="duplicateQ(this)">📋</button><button onclick="deleteQ(this)">🗑️</button>
+                        </div>
+                        <div class="q-title" contenteditable="true"> <span>📖</span> س1/ ما المقصود بالمفردات التالية لخمس مما يأتي</div>
+                        <div class="grid-4-cols" contenteditable="true">
+                            <div>١- الإثبات</div><div>٢- المعادلة الكيميائية</div><div>٣- التكاثر الخضري</div><div>٤- الصبيوان</div>
+                            <div>٥- غاز ثنائي اوكسيد الكاربون</div><div>٦- البذرة</div><div>٧- الشبكية</div><div></div>
+                        </div>
+                    </div>
+
+                    <div class="question-container q2">
+                        <div class="action-btns">
+                            <button onclick="moveUp(this)">⬆️</button><button onclick="moveDown(this)">⬇️</button>
+                            <button onclick="duplicateQ(this)">📋</button><button onclick="deleteQ(this)">🗑️</button>
+                        </div>
+                        <div class="q-title" contenteditable="true"> <span>✏️</span> س2/ أجب عن فرعين فقط (لكل فرع ١٠ درجات)</div>
+                        <div class="text-area" contenteditable="true">أ/ ما خطوات تفكير النباتات بالتركيب ؟
+
+ب/ ارسم مع التأشير براعم التذوق في اللسان
+
+ج/ وضح بمخطط اجزاء الجهاز الهيكلي</div>
+                    </div>
+
+                    <div class="question-container q3">
+                        <div class="action-btns">
+                            <button onclick="moveUp(this)">⬆️</button><button onclick="moveDown(this)">⬇️</button>
+                            <button onclick="duplicateQ(this)">📋</button><button onclick="deleteQ(this)">🗑️</button>
+                        </div>
+                        <div class="q-title" contenteditable="true"> <span>🌿</span> س3/ املأ الفراغات التالية لخمس مما يأتي</div>
+                        <div class="text-area" contenteditable="true">١- تقع المواد الناتجة على ..................................... السهم
+٢- ..................................... هي جزء الجنين الذي ينمو فيها بعد ليكون الساق
+٣- نبات ..................................... يستخدم طبيعيا في علاج الامراض</div>
+                    </div>
+                </div>
+
+                <!-- اسم المبرمج -->
+                <div class="programmer-name" id="prog-name">برمجة: أكرم حاتم الغزالي</div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentScale = 1;
+        
+        function fitToScreen() {
+            const container = document.getElementById('pages-container');
+            const workspace = document.getElementById('workspace');
+            const controls = document.getElementById('controls');
+            const screenWidth = window.innerWidth;
+            const a4Width = 794; 
+
+            const controlsHeight = controls.offsetHeight;
+            workspace.style.marginTop = (controlsHeight + 15) + 'px';
+
+            if (screenWidth < a4Width) {
+                currentScale = (screenWidth - 20) / a4Width;
+            } else {
+                currentScale = 1; 
+            }
+            
+            container.style.transform = `scale(${currentScale})`;
+            const scaledHeight = container.offsetHeight * currentScale;
+            container.style.marginBottom = (scaledHeight - container.offsetHeight) + 'px';
+        }
+
+        window.addEventListener('load', fitToScreen);
+        window.addEventListener('resize', fitToScreen);
+
+        let undoStack = [];
+        function saveState() {
+            const container = document.getElementById('pages-container');
+            undoStack.push(container.innerHTML);
+            if (undoStack.length > 30) undoStack.shift();
+        }
+
+        function undoAction() {
+            if (undoStack.length > 0) {
+                const lastState = undoStack.pop();
+                document.getElementById('pages-container').innerHTML = lastState;
+                rebindAllDraggables();
+                fitToScreen();
+            } else {
+                alert('لا توجد خطوات سابقة للرجوع إليها!');
+            }
+        }
+
+        function deleteQ(btn) { 
+            if(confirm('هل أنت متأكد من حذف هذا السؤال؟')) {
+                saveState();
+                btn.closest('.question-container').remove(); 
+                fitToScreen();
+            }
+        }
+        function moveUp(btn) {
+            saveState();
+            const current = btn.closest('.question-container');
+            const prev = current.previousElementSibling;
+            if (prev) current.parentNode.insertBefore(current, prev);
+        }
+        function moveDown(btn) {
+            saveState();
+            const current = btn.closest('.question-container');
+            const next = current.nextElementSibling;
+            if (next) current.parentNode.insertBefore(next, current);
+        }
+
+        // ترحيل الأسئلة التلقائي إذا امتلأت الصفحة
+        function checkAutoFlow() {
+            const pages = document.querySelectorAll('.a4-page');
+            const lastPage = pages[pages.length - 1];
+            
+            if (lastPage.scrollHeight > 1120) {
+                const qArea = lastPage.querySelector('.questions-area');
+                const lastQuestion = qArea.lastElementChild;
+                if (lastQuestion) {
+                    addNewPage(true); 
+                    const newPages = document.querySelectorAll('.a4-page');
+                    const newLastPage = newPages[newPages.length - 1];
+                    newLastPage.querySelector('.questions-area').appendChild(lastQuestion);
+                }
+            }
+        }
+
+        function duplicateQ(btn) {
+            saveState();
+            const current = btn.closest('.question-container');
+            const clone = current.cloneNode(true);
+            current.parentNode.insertBefore(clone, current.nextElementSibling);
+            checkAutoFlow(); 
+            fitToScreen();
+        }
+
+        function hideElement(btn) { 
+            saveState();
+            btn.parentElement.style.display = 'none'; 
+            fitToScreen();
+        }
+
+        const allColors = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 'q12', 'q13', 'q14', 'q15'];
+        let colorIndex = 3; 
+
+        function addQuestion() {
+            saveState();
+            const selectedColor = allColors[colorIndex % allColors.length];
+            colorIndex++;
+            
+            const qHTML = `
+                <div class="question-container ${selectedColor}">
+                    <div class="action-btns">
+                        <button onclick="moveUp(this)">⬆️</button><button onclick="moveDown(this)">⬇️</button>
+                        <button onclick="duplicateQ(this)">📋</button><button onclick="deleteQ(this)">🗑️</button>
+                    </div>
+                    <div class="q-title" contenteditable="true"> <span>📝</span> س/ سؤال جديد</div>
+                    <div class="text-area" contenteditable="true">اكتب تفاصيل السؤال هنا...</div>
+                </div>
+            `;
+            
+            const pages = document.querySelectorAll('.a4-page');
+            const lastPage = pages[pages.length - 1];
+            lastPage.querySelector('.questions-area').insertAdjacentHTML('beforeend', qHTML);
+            
+            checkAutoFlow(); 
+            fitToScreen();
+            setTimeout(() => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }, 100);
+        }
+
+        function addNewPage(isAutoFlow = false) {
+            if(!isAutoFlow) saveState();
+            const container = document.getElementById('pages-container');
+            
+            // إنشاء ورقة جديدة فارغة
+            const newPage = document.createElement('div');
+            newPage.className = 'a4-page';
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-del-page';
+            delBtn.innerHTML = '❌ حذف هذه الصفحة';
+            delBtn.onclick = function() { 
+                saveState(); 
+                container.removeChild(newPage); 
+                fitToScreen();
+            };
+            newPage.appendChild(delBtn);
+
+            const newQuestionsArea = document.createElement('div');
+            newQuestionsArea.className = 'questions-area';
+            newPage.appendChild(newQuestionsArea);
+
+            // استنساخ اسم المبرمج للصفحة الجديدة
+            const progName = document.getElementById('prog-name');
+            if (progName) newPage.appendChild(progName.cloneNode(true));
+
+            container.appendChild(newPage);
+            
+            fitToScreen();
+            if(!isAutoFlow){
+                setTimeout(() => { window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }, 100);
+            }
+        }
+
+        // --- دوال إضافة العناصر الحرة القابلة للسحب (صورة، توقيع، دعاء) ---
+        function createDraggableElement(type, src = '') {
+            saveState();
+            const wrapper = document.createElement('div');
+            wrapper.className = 'draggable-item';
+            wrapper.style.left = '30%'; wrapper.style.top = '250px'; 
+
+            const moveHandle = document.createElement('div');
+            moveHandle.className = 'drag-move-handle';
+            moveHandle.innerHTML = '✥';
+            moveHandle.title = 'اسحبني من هنا';
+            wrapper.appendChild(moveHandle);
+
+            const controls = document.createElement('div'); 
+            controls.className = 'img-controls';
+            const delBtn = document.createElement('button'); 
+            delBtn.className = 'img-btn'; delBtn.innerHTML = '❌';
+            delBtn.onclick = () => { saveState(); wrapper.remove(); };
+            controls.appendChild(delBtn);
+
+            const resizeHandle = document.createElement('div'); 
+            resizeHandle.className = 'img-resize-handle'; 
+            resizeHandle.innerHTML = '↘️';
+
+            if (type === 'image') {
+                wrapper.classList.add('img-wrapper');
+                const img = document.createElement('img'); img.src = src;
+                
+                const cropBtn = document.createElement('button'); cropBtn.className = 'img-btn'; cropBtn.innerHTML = '✂️';
+                cropBtn.onclick = () => {
+                    saveState();
+                    if (img.style.objectFit === 'cover') { img.style.objectFit = 'contain'; cropBtn.style.backgroundColor = 'white'; } 
+                    else { img.style.objectFit = 'cover'; cropBtn.style.backgroundColor = '#4CAF50'; }
+                };
+                controls.insertBefore(cropBtn, delBtn);
+                wrapper.appendChild(img);
+            } 
+            else if (type === 'sign') {
+                wrapper.classList.add('sign-wrapper');
+                const signDiv = document.createElement('div');
+                signDiv.className = 'teacher-sign';
+                signDiv.contentEditable = true;
+                signDiv.innerHTML = '<div>معلم المادة</div><div>أكرم حاتم الغزالي</div>';
+                wrapper.appendChild(signDiv);
+            }
+            else if (type === 'banner') {
+                wrapper.classList.add('banner-wrapper');
+                const bannerDiv = document.createElement('div');
+                bannerDiv.className = 'banner-bar';
+                bannerDiv.contentEditable = true;
+                bannerDiv.innerHTML = '⭐ دعائي لكم بالنجاح الدائم ⭐';
+                wrapper.appendChild(bannerDiv);
+            }
+
+            wrapper.appendChild(controls); 
+            wrapper.appendChild(resizeHandle);
+            
+            // إضافة العنصر لآخر صفحة نشطة
+            const pages = document.querySelectorAll('.a4-page');
+            pages[pages.length - 1].appendChild(wrapper);
+
+            setupDragAndResize(wrapper, moveHandle, resizeHandle);
+        }
+
+        // أزرار شريط الأدوات العلوية
+        function handleAddImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) { createDraggableElement('image', e.target.result); };
+            reader.readAsDataURL(file);
+            event.target.value = ''; 
+        }
+
+        function addDraggableSign() { createDraggableElement('sign'); }
+        function addDraggableBanner() { createDraggableElement('banner'); }
+
+        // --- نظام السحب والتحجيم المشترك ---
+        function rebindAllDraggables() {
+            document.querySelectorAll('.draggable-item').forEach(wrapper => {
+                const moveHandle = wrapper.querySelector('.drag-move-handle');
+                const resizeHandle = wrapper.querySelector('.img-resize-handle');
+                
+                setupDragAndResize(wrapper, moveHandle, resizeHandle);
+                
+                const delBtn = wrapper.querySelector('.img-btn:last-child'); 
+                const cropBtn = wrapper.querySelector('.img-btn:first-child'); 
+                const img = wrapper.querySelector('img');
+                
+                if(delBtn) delBtn.onclick = () => { saveState(); wrapper.remove(); };
+                if(cropBtn && img) cropBtn.onclick = () => {
+                    saveState();
+                    if (img.style.objectFit === 'cover') { img.style.objectFit = 'contain'; cropBtn.style.backgroundColor = 'white'; } 
+                    else { img.style.objectFit = 'cover'; cropBtn.style.backgroundColor = '#4CAF50'; }
+                };
+            });
+            document.querySelectorAll('.btn-del-page').forEach(button => {
+                button.onclick = () => {
+                    const page = button.closest('.a4-page');
+                    if (!page || page.id === 'main-page') return;
+                    saveState();
+                    page.remove();
+                    fitToScreen();
+                };
+            });
+        }
+
+        function setupDragAndResize(wrapper, moveHandle, resizeHandle) {
+            let isDragging = false, isResizing = false;
+            let startX, startY, startLeft, startTop, startWidth, startHeight;
+
+            // تفعيل السحب فقط عند الضغط على الأيقونة ✥ لكي لا يتداخل مع الكتابة
+            if(moveHandle) {
+                moveHandle.addEventListener('mousedown', dragStart); 
+                moveHandle.addEventListener('touchstart', dragStart, {passive: false});
+            }
+
+            function dragStart(e) {
+                e.preventDefault(); 
+                isDragging = true;
+                startX = e.touches ? e.touches[0].clientX : e.clientX; 
+                startY = e.touches ? e.touches[0].clientY : e.clientY;
+                startLeft = wrapper.offsetLeft; 
+                startTop = wrapper.offsetTop;
+                document.addEventListener('mousemove', dragMove); 
+                document.addEventListener('touchmove', dragMove, {passive: false});
+                document.addEventListener('mouseup', dragEnd); 
+                document.addEventListener('touchend', dragEnd);
+            }
+            function dragMove(e) {
+                if (!isDragging) return; 
+                e.preventDefault();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                wrapper.style.left = (startLeft + (clientX - startX) / currentScale) + 'px'; 
+                wrapper.style.top = (startTop + (clientY - startY) / currentScale) + 'px';
+            }
+            function dragEnd() { 
+                isDragging = false; 
+                document.removeEventListener('mousemove', dragMove); 
+                document.removeEventListener('touchmove', dragMove); 
+                document.removeEventListener('mouseup', dragEnd);
+                document.removeEventListener('touchend', dragEnd);
+            }
+
+            if(resizeHandle) {
+                resizeHandle.addEventListener('mousedown', resizeStart); 
+                resizeHandle.addEventListener('touchstart', resizeStart, {passive: false});
+            }
+
+            function resizeStart(e) {
+                e.preventDefault(); e.stopPropagation(); 
+                isResizing = true;
+                startX = e.touches ? e.touches[0].clientX : e.clientX; 
+                startY = e.touches ? e.touches[0].clientY : e.clientY;
+                startWidth = wrapper.offsetWidth; 
+                startHeight = wrapper.offsetHeight;
+                document.addEventListener('mousemove', resizeMove); 
+                document.addEventListener('touchmove', resizeMove, {passive: false});
+                document.addEventListener('mouseup', resizeEnd); 
+                document.addEventListener('touchend', resizeEnd);
+            }
+            function resizeMove(e) {
+                if (!isResizing) return; 
+                e.preventDefault();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                wrapper.style.width = Math.max(50, startWidth - (clientX - startX) / currentScale) + 'px'; 
+                wrapper.style.height = Math.max(50, startHeight + (clientY - startY) / currentScale) + 'px';
+            }
+            function resizeEnd() { 
+                isResizing = false; 
+                document.removeEventListener('mousemove', resizeMove); 
+                document.removeEventListener('touchmove', resizeMove); 
+                document.removeEventListener('mouseup', resizeEnd);
+                document.removeEventListener('touchend', resizeEnd);
+            }
+        }
+    </script>
+    <script>
+        const QUESTION_DRAFT_KEY = 'abuBassamQuestionDraftArabicV1';
+        let draftTimer = 0;
+
+        function hostMessage(payload) {
+            try { window.parent.postMessage(payload, '*'); } catch (error) {}
+        }
+
+        function saveQuestionDraft(showMessage) {
+            try {
+                localStorage.setItem(QUESTION_DRAFT_KEY, document.getElementById('pages-container').innerHTML);
+                if (showMessage) alert('تم حفظ مسودة الأسئلة العربية على الجهاز ✓');
+            } catch (error) {
+                if (showMessage) alert('تعذر حفظ المسودة؛ قد تكون الصور المضافة كبيرة جدًا.');
+            }
+        }
+
+        function scheduleQuestionDraft() {
+            clearTimeout(draftTimer);
+            draftTimer = setTimeout(() => saveQuestionDraft(false), 500);
+        }
+
+        function restoreQuestionDraft() {
+            try {
+                const saved = localStorage.getItem(QUESTION_DRAFT_KEY);
+                if (!saved) return false;
+                document.getElementById('pages-container').innerHTML = saved;
+                rebindAllDraggables();
+                return true;
+            } catch (error) { return false; }
+        }
+
+        function printableQuestionHtml() {
+            const clone = document.documentElement.cloneNode(true);
+            clone.querySelectorAll('script,.controls-bar,.btn-del-page,.action-btns,.del-note-btn,.img-controls,.img-resize-handle,.drag-move-handle').forEach(node => node.remove());
+            const workspace = clone.querySelector('#workspace');
+            const pages = clone.querySelector('#pages-container');
+            if (workspace) workspace.style.marginTop = '0';
+            if (pages) { pages.style.transform = 'none'; pages.style.marginBottom = '0'; }
+            clone.querySelectorAll('[contenteditable]').forEach(node => node.removeAttribute('contenteditable'));
+            return '<!DOCTYPE html>' + clone.outerHTML;
+        }
+
+        function printQuestionExam() {
+            saveQuestionDraft(false);
+            hostMessage({ type: 'abuPrintQuestion', language: 'ar', html: printableQuestionHtml() });
+        }
+
+        function saveQuestionPdf() {
+            saveQuestionDraft(false);
+            hostMessage({ type: 'abuSaveQuestionPdf', language: 'ar', name: 'Abu_Bassam_Questions_AR_' + Date.now() + '.pdf', html: printableQuestionHtml() });
+        }
+
+        function resetQuestionDraft() {
+            if (!confirm('بدء نموذج جديد؟ ستُحذف المسودة العربية الحالية فقط.')) return;
+            localStorage.removeItem(QUESTION_DRAFT_KEY);
+            location.reload();
+        }
+
+        document.addEventListener('input', scheduleQuestionDraft, true);
+        window.addEventListener('load', () => {
+            const restored = restoreQuestionDraft();
+            fitToScreen();
+            const container = document.getElementById('pages-container');
+            if (container) new MutationObserver(scheduleQuestionDraft).observe(container, { childList: true, subtree: true, characterData: true, attributes: true });
+            hostMessage({ type: 'abuQuestionReady', language: 'ar', message: restored ? 'تمت استعادة مسودة الأسئلة العربية ✓' : 'نموذج الأسئلة العربية جاهز' });
+        });
+        window.addEventListener('message', event => { if (event.data && event.data.type === 'abuBassamTabVisible') setTimeout(fitToScreen, 30); });
+    </script>
+</body>
+</html>
