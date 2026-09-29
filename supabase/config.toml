@@ -1,0 +1,23 @@
+# Edge Function authentication configuration mirrored from the live Abu Bassam project.
+# Secrets are intentionally NOT stored in this repository.
+
+[functions.abu-bassam-ai-photo]
+verify_jwt = false
+
+[functions.abu-bassam-ai-status]
+verify_jwt = false
+
+[functions.bootstrap-owner]
+verify_jwt = true
+
+[functions.branch-vault]
+verify_jwt = true
+
+[functions.customer-documents]
+verify_jwt = true
+
+[functions.backup-center]
+verify_jwt = true
+
+[functions.app-update]
+verify_jwt = true
