@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>طباعة المستمسكات الثبوتية</title>
+    
+    <!-- الخط فقط؛ محرك القص الحر يعمل محلياً دون مكتبات خارجية -->
+    <style>@font-face{font-family:Cairo;src:url('fonts/Cairo-Regular.ttf') format('truetype');font-weight:400 600}@font-face{font-family:Cairo;src:url('fonts/Cairo-Bold.ttf') format('truetype');font-weight:700 900}</style>
+    
+    <style>
+        /* =========================================
+           إعدادات عامة وتصميم 3D براق
+           ========================================= */
+        :root {
+            --dark-blue: #002663;
+            --light-blue: #0099ff;
+            --bg-gradient: linear-gradient(135deg, #f0f4fd 0%, #e1ebf9 100%);
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: var(--bg-gradient);
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
+        }
+
+        #app-ui {
+            max-width: 800px;
+            margin: 0 auto;
+            min-height: 100vh;
+            padding-bottom: 20px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* الهيدر والأيقونات 3D */
+        .header-section {
+            padding: 25px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-text h1 { 
+            color: var(--dark-blue); font-size: clamp(22px, 5vw, 28px); font-weight: 900; margin: 0; line-height: 1.2; 
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.15); 
+        }
+        .header-text h2 { color: var(--light-blue); font-size: clamp(18px, 4.5vw, 24px); font-weight: 700; margin: 0; line-height: 1.2; }
+        .header-text p { color: #516377; font-size: 13px; margin-top: 5px; font-weight: 700; }
+        
+        .header-icons {
+            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; background: rgba(255, 255, 255, 0.5);
+            padding: 8px; border-radius: 15px;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.8), 0 5px 15px rgba(0,0,0,0.05);
+        }
+        
+        /* زر الطباعة والحفظ الأساسي */
+        .icon-btn-3d.primary-pdf {
+            height: 45px; border-radius: 10px; border: none;
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white; font-size: 11px; font-family: 'Cairo'; font-weight: 800;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+            cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 0 10px;
+            box-shadow: 3px 3px 6px rgba(0,123,255,0.4), -3px -3px 6px #ffffff;
+        }
+        .icon-btn-3d.primary-pdf.gallery { background: linear-gradient(135deg, #198754, #0f6640); }
+        .icon-btn-3d.primary-pdf.pdf { background: linear-gradient(135deg, #b57919, #875307); }
+        .icon-btn-3d.primary-pdf:active {
+            box-shadow: inset 3px 3px 6px rgba(0,0,0,0.2), inset -3px -3px 6px rgba(255,255,255,0.2);
+            transform: translateY(2px);
+        }
+
+        /* الشبكة والبطاقات */
+        .cards-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 0 20px;
+        }
+
+        .card {
+            border-radius: 18px; padding: 15px; position: relative; cursor: pointer; overflow: hidden;
+            display: flex; flex-direction: column; justify-content: space-between; min-height: 110px;
+            border: 2px solid rgba(255,255,255,0.7);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1), inset 0 4px 6px rgba(255,255,255,0.8), inset 0 -4px 6px rgba(0,0,0,0.05);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card:active { transform: translateY(5px) scale(0.96); box-shadow: 0 4px 8px rgba(0,0,0,0.1), inset 0 4px 6px rgba(0,0,0,0.1); }
+        
+        .card-content { z-index: 2; position: relative; }
+        .card h3 { margin: 0; font-size: 15px; font-weight: 900; color: #1a1a1a; text-shadow: 1px 1px 0px rgba(255,255,255,0.5); }
+        .card p { margin: 3px 0 0 0; font-size: 11px; font-weight: 700; color: #444; }
+        .card-bottom { display: flex; justify-content: flex-end; margin-top: 15px; z-index: 2; }
+        
+        .action-btn { 
+            width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+            color: white; font-size: 14px; font-weight: bold; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3), inset 0 2px 2px rgba(255,255,255,0.4);
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .card.success .action-btn { background: linear-gradient(135deg, #28a745, #1e7e34) !important; }
+        .card.success p { color: #116823; font-weight: 800; }
+        .card-bg-icon { position: absolute; left: -10px; bottom: -15px; font-size: 90px; opacity: 0.15; z-index: 1; transform: rotate(-20deg); filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2)); }
+
+        .bg-blue { background: linear-gradient(135deg, #DCE9FF, #A3C5FF); } .bg-blue .action-btn { background: linear-gradient(135deg, #007BFF, #0056b3); }
+        .bg-green { background: linear-gradient(135deg, #E0F5E2, #A5DFAC); } .bg-green .action-btn { background: linear-gradient(135deg, #28a745, #1e7e34); }
+        .bg-purple { background: linear-gradient(135deg, #F3E5F5, #D1A3D8); } .bg-purple .action-btn { background: linear-gradient(135deg, #9C27B0, #6a1b9a); }
+        .bg-orange { background: linear-gradient(135deg, #FFF0D4, #FFCE85); } .bg-orange .action-btn { background: linear-gradient(135deg, #FF9800, #e65100); }
+        .bg-pink { background: linear-gradient(135deg, #FCE4EC, #F4A6C1); } .bg-pink .action-btn { background: linear-gradient(135deg, #E91E63, #ad1457); }
+        .bg-teal { background: linear-gradient(135deg, #E0F2F1, #99D5CF); } .bg-teal .action-btn { background: linear-gradient(135deg, #009688, #00695c); }
+
+        /* قسم العائلة */
+        .family-section { margin-top: 30px; }
+        .section-title { text-align: center; color: var(--dark-blue); font-weight: 900; font-size: 18px; margin-bottom: 15px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
+        
+        .add-family-btn {
+            display: block; width: calc(100% - 40px); margin: 0 auto 20px;
+            padding: 12px; font-size: 16px; font-family: 'Cairo'; font-weight: 900;
+            background: linear-gradient(135deg, #007bff, #0056b3); color: white;
+            border: none; border-radius: 15px; cursor: pointer;
+            box-shadow: 0 8px 15px rgba(0,123,255,0.3), inset 0 2px 2px rgba(255,255,255,0.3);
+            transition: all 0.2s;
+        }
+        .add-family-btn:active { transform: translateY(3px); box-shadow: 0 3px 5px rgba(0,123,255,0.3); }
+
+        .developer-name {
+            text-align: center; margin-top: 30px; padding-bottom: 10px;
+            color: #7b8fa3; font-size: 15px; font-weight: 900;
+            text-shadow: 1px 1px 0px #fff, -1px -1px 0px rgba(0,0,0,0.05);
+        }
+
+        /* =========================================
+           نافذة الاقتصاص 
+           ========================================= */
+        #crop-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .crop-container { width: 90%; max-width: 700px; height: 55vh; background: #202226; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; }
+        #free-crop-preview { max-width:100%; max-height:100%; display:block; }
+        .free-crop-controls { width:min(700px,90%); display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; padding:10px; border-radius:12px; background:#fff; box-sizing:border-box; }
+        .free-crop-controls label { color:#173f77; font-size:11px; font-weight:900; display:grid; gap:3px; }
+        .free-crop-controls input { width:100%; }
+        .crop-actions { margin-top: 20px; display: flex; gap: 15px; }
+        .crop-btn { padding: 12px 30px; font-size: 16px; font-family: 'Cairo'; font-weight: 900; border: none; border-radius: 10px; cursor: pointer; color: white; box-shadow: 0 6px 12px rgba(0,0,0,0.3); }
+        .btn-save { background: linear-gradient(135deg, #28a745, #1e7e34); }
+        .btn-cancel { background: linear-gradient(135deg, #dc3545, #a71d2a); }
+
+        /* =========================================
+           ورقة A4 والمعاينة الدقيقة (بالمليمتر لضمان التوافق المطلق)
+           ========================================= */
+        #print-ui {
+            display: none; flex-direction: column; align-items: center; width: 100%;
+            background-color: #6c757d; min-height: 100vh; padding: 20px; box-sizing: border-box;
+        }
+        
+        .print-toolbar {
+            background: rgba(255, 255, 255, 0.9); padding: 15px; border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3); margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; z-index: 10;
+        }
+        .btn-back, .btn-print-action { 
+            padding: 10px 25px; font-size: 15px; font-family: 'Cairo', sans-serif; font-weight: 900;
+            cursor: pointer; border: none; border-radius: 10px; color: white;
+            box-shadow: 0 6px 10px rgba(0,0,0,0.2); transition: transform 0.2s;
+        }
+        .btn-back { background: linear-gradient(135deg, #6c757d, #495057); }
+        .btn-print-action { background: linear-gradient(135deg, #007bff, #0056b3); }
+        .btn-print-action.gallery { background: linear-gradient(135deg, #198754, #0f6640); }
+        .btn-print-action.pdf { background: linear-gradient(135deg, #b57919, #875307); }
+
+        @media (max-width: 620px) {
+            .header-section { display: block; padding: 16px 12px; }
+            .header-icons { margin-top: 10px; }
+            .icon-btn-3d.primary-pdf { min-height: 49px; height: auto; padding: 6px 4px; font-size: 10px; }
+        }
+
+        #pages-container {
+            display: flex; flex-direction: column; gap: 20px; transform-origin: top center;
+        }
+
+        /* استخدام المليمتر لضمان قراءة الطابعة للأبعاد بدقة 100% دون تداخل */
+        .a4-page {
+            width: 210mm !important; 
+            height: 297mm !important; 
+            background: white;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            padding: 8mm 12mm; /* مسافات داخلية مدروسة تمنع تداخل الأعمدة */
+            box-sizing: border-box;
+            display: flex; justify-content: space-between; overflow: hidden;
+            direction: ltr; position: relative;
+        }
+
+        /* تنسيق الأعمدة بمقاسات تمنع التداخل نهائياً */
+        .column-left { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm 4mm; align-content: start; justify-items: center; width: 100%; }
+        .column-right { display: flex; flex-direction: column; align-items: center; width: 83mm; }
+        
+        /* تنسيق أعمدة العائلة */
+        .family-column { display: flex; flex-direction: column; gap: 21mm; align-items: center; width: 50%; }
+
+        .slot { position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .slot img { width: 100%; height: 100%; object-fit: fill; display: none; border: 1px solid #ddd; }
+
+        /* الأبعاد الفيزيائية الدقيقة للمستمسكات */
+        .id-card { width: 85.6mm !important; height: 54mm !important; }
+        .sakan-card { width: 100mm !important; height: 70mm !important; }
+
+        /* =========================================
+           إعدادات الطباعة الأساسية للمتصفح (Native Print)
+           ========================================= */
+        @media print {
+            @page { size: A4 portrait; margin: 0; }
+            body, html { width: 100%; height: 100%; margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            
+            /* إخفاء الواجهة الأمامية بالكامل أثناء الطباعة */
+            #app-ui, #crop-modal, .print-toolbar { display: none !important; }
+            
+            /* إظهار واجهة الطباعة فقط بشكل كامل */
+            #print-ui {
+                display: block !important; position: absolute; left: 0; top: 0; 
+                width: 100%; background: white !important; padding: 0 !important; margin: 0 !important;
+            }
+            #pages-container { transform: none !important; gap: 0 !important; }
+            
+            /* فصل الصفحات برمجياً أثناء حفظ الـ PDF */
+            .a4-page {
+                width: 210mm !important; height: 297mm !important;
+                margin: 0 auto !important; border: none !important; box-shadow: none !important;
+                page-break-after: always !important; /* ضمان فصل الصفحات */
+                page-break-inside: avoid !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- الواجهة الرئيسية -->
+    <div id="app-ui">
+        <div class="header-section">
+            <div class="header-text">
+                <h1>طباعة المستمسكات</h1>
+                <h2>الثبوتية الرسمية</h2>
+                <p>بكل سهولة .. وبجودة عالية</p>
+            </div>
+            <div class="header-icons">
+                <button type="button" class="icon-btn-3d primary-pdf gallery" onclick="saveResidenceGallery()">🖼️ المعرض</button>
+                <button type="button" class="icon-btn-3d primary-pdf pdf" onclick="saveResidencePdf()">📄 حفظ PDF</button>
+                <button type="button" class="icon-btn-3d primary-pdf" onclick="printResidenceDocuments()">🖨️ طباعة</button>
+            </div>
+        </div>
+
+        <!-- المستمسكات الرئيسية -->
+        <div class="cards-grid">
+            <div class="card bg-blue" id="card-id-front" onclick="triggerInput('input-id-front', 'id')">
+                <div class="card-bg-icon">🪪</div>
+                <div class="card-content"><h3>البطاقة الوطنية</h3><p id="desc-id-front">إضافة الوجه الأمامي</p></div>
+                <div class="card-bottom"><div class="action-btn" id="btn-id-front">❯</div></div>
+            </div>
+            <div class="card bg-green" id="card-id-back" onclick="triggerInput('input-id-back', 'id')">
+                <div class="card-bg-icon">🪪</div>
+                <div class="card-content"><h3>البطاقة الوطنية</h3><p id="desc-id-back">إضافة الوجه الخلفي</p></div>
+                <div class="card-bottom"><div class="action-btn" id="btn-id-back">❯</div></div>
+            </div>
+            <div class="card bg-purple" id="card-sakan-front" onclick="triggerInput('input-sakan-front', 'sakan')">
+                <div class="card-bg-icon">🏠</div>
+                <div class="card-content"><h3>بطاقة السكن</h3><p id="desc-sakan-front">إضافة الوجه الأمامي</p></div>
+                <div class="card-bottom"><div class="action-btn" id="btn-sakan-front">❯</div></div>
+            </div>
+            <div class="card bg-orange" id="card-sakan-back" onclick="triggerInput('input-sakan-back', 'sakan')">
+                <div class="card-bg-icon">🏠</div>
+                <div class="card-content"><h3>بطاقة السكن</h3><p id="desc-sakan-back">إضافة الوجه الخلفي</p></div>
+                <div class="card-bottom"><div class="action-btn" id="btn-sakan-back">❯</div></div>
+            </div>
+            <div class="card bg-pink" id="card-ration" onclick="triggerInput('input-ration', 'free')">
+                <div class="card-bg-icon">🧾</div>
+                <div class="card-content"><h3>البطاقة التموينية</h3><p id="desc-ration">إضافة المستمسك</p></div>
+                <div class="card-bottom"><div class="action-btn" id="btn-ration">❯</div></div>
+            </div>
+            <div class="card bg-teal" id="card-custom" onclick="triggerInput('input-custom', 'free')">
+                <div class="card-bg-icon">📄</div>
+                <div class="card-content"><h3 id="custom-doc-title">مستمسك مخصص</h3><p id="desc-custom">إضافة صورة المستمسك</p></div>
+                <div class="card-bottom"><div class="action-btn" id="btn-custom">❯</div></div>
+            </div>
+            <input id="custom-doc-name" type="text" placeholder="اسم المستمسك المخصص" oninput="document.getElementById('custom-doc-title').textContent=this.value||'مستمسك مخصص'" style="grid-column:1/-1;min-height:44px;border:1px solid #b9bff0;border-radius:12px;padding:8px;text-align:right;font-family:Cairo">
+            <div class="card bg-teal" onclick="openPrintPreview()">
+                <div class="card-bg-icon">👁️</div>
+                <div class="card-content"><h3>معاينة المستندات</h3><p>عرض النتيجة فقط</p></div>
+                <div class="card-bottom"><div class="action-btn">❯</div></div>
+            </div>
+        </div>
+
+        <!-- قسم العائلة (الصفحة الثانية) -->
+        <div class="family-section">
+            <div class="section-title">👨‍👩‍👧‍👦 بطاقات أفراد العائلة (صفحة إضافية)</div>
+            <button class="add-family-btn" onclick="addFamilyMember()">➕ إضافة فرد جديد (الحد الأقصى 4)</button>
+            <div id="family-meta-list"></div>
+            <div class="cards-grid" id="family-cards-container">
+                <!-- الفرد 1 -->
+                <div class="card bg-blue" id="ui-fam1-front" style="display:none;" onclick="triggerInput('input-fam1-front', 'id')">
+                    <div class="card-bg-icon">🧑</div><div class="card-content"><h3>بطاقة الفرد 1</h3><p id="desc-fam1-front">الوجه الأمامي</p></div><div class="card-bottom"><div class="action-btn" id="btn-fam1-front">❯</div></div>
+                </div>
+                <div class="card bg-green" id="ui-fam1-back" style="display:none;" onclick="triggerInput('input-fam1-back', 'id')">
+                    <div class="card-bg-icon">🧑</div><div class="card-content"><h3>بطاقة الفرد 1</h3><p id="desc-fam1-back">الوجه الخلفي</p></div><div class="card-bottom"><div class="action-btn" id="btn-fam1-back">❯</div></div>
+                </div>
+                <!-- الفرد 2 -->
+                <div class="card bg-blue" id="ui-fam2-front" style="display:none;" onclick="triggerInput('input-fam2-front', 'id')">
+                    <div class="card-bg-icon">👧</div><div class="card-content"><h3>بطاقة الفرد 2</h3><p id="desc-fam2-front">الوجه الأمامي</p></div><div class="card-bottom"><div class="action-btn" id="btn-fam2-front">❯</div></div>
+                </div>
+                <div class="card bg-green" id="ui-fam2-back" style="display:none;" onclick="triggerInput('input-fam2-back', 'id')">
+                    <div class="card-bg-icon">👧</div><div class="card-content"><h3>بطاقة الفرد 2</h3><p id="desc-fam2-back">الوجه الخلفي</p></div><div class="card-bottom"><div class="action-btn" id="btn-fam2-back">❯</div></div>
+                </div>
+                <!-- الفرد 3 -->
+                <div class="card bg-blue" id="ui-fam3-front" style="display:none;" onclick="triggerInput('input-fam3-front', 'id')">
+                    <div class="card-bg-icon">👦</div><div class="card-content"><h3>بطاقة الفرد 3</h3><p id="desc-fam3-front">الوجه الأمامي</p></div><div class="card-bottom"><div class="action-btn" id="btn-fam3-front">❯</div></div>
+                </div>
+                <div class="card bg-green" id="ui-fam3-back" style="display:none;" onclick="triggerInput('input-fam3-back', 'id')">
+                    <div class="card-bg-icon">👦</div><div class="card-content"><h3>بطاقة الفرد 3</h3><p id="desc-fam3-back">الوجه الخلفي</p></div><div class="card-bottom"><div class="action-btn" id="btn-fam3-back">❯</div></div>
+                </div>
+                <!-- الفرد 4 -->
+                <div class="card bg-blue" id="ui-fam4-front" style="display:none;" onclick="triggerInput('input-fam4-front', 'id')">
+                    <div class="card-bg-icon">👶</div><div class="card-content"><h3>بطاقة الفرد 4</h3><p id="desc-fam4-front">الوجه الأمامي</p></div><div class="card-bottom"><div class="action-btn" id="btn-fam4-front">❯</div></div>
+                </div>
+                <div class="card bg-green" id="ui-fam4-back" style="display:none;" onclick="triggerInput('input-fam4-back', 'id')">
+                    <div class="card-bg-icon">👶</div><div class="card-content"><h3>بطاقة الفرد 4</h3><p id="desc-fam4-back">الوجه الخلفي</p></div><div class="card-bottom"><div class="action-btn" id="btn-fam4-back">❯</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="developer-name">مكتبة أبو بسام للقرطاسية والتصوير<br>برمجة: أكرم حاتم الغزالي</div>
+    </div>
+
+    <!-- نافذة الاقتصاص -->
+    <div id="crop-modal">
+        <div class="crop-container">
+            <canvas id="free-crop-preview"></canvas>
+            <img id="image-to-crop" src="" style="display:none;">
+        </div>
+        <div class="free-crop-controls">
+            <label>من اليسار<input id="free-crop-left" type="range" min="0" max="45" value="0" oninput="drawFreeCropPreview()"></label>
+            <label>من اليمين<input id="free-crop-right" type="range" min="55" max="100" value="100" oninput="drawFreeCropPreview()"></label>
+            <label>من الأعلى<input id="free-crop-top" type="range" min="0" max="45" value="0" oninput="drawFreeCropPreview()"></label>
+            <label>من الأسفل<input id="free-crop-bottom" type="range" min="55" max="100" value="100" oninput="drawFreeCropPreview()"></label>
+        </div>
+        <div class="crop-actions">
+            <button type="button" class="crop-btn btn-save" onclick="cropAndSave()">قص واعتماد ✅</button>
+            <button type="button" class="crop-btn btn-cancel" onclick="closeCropModal()">إلغاء ❌</button>
+        </div>
+    </div>
+
+    <!-- واجهة المعاينة (ورق الطباعة) -->
+    <div id="print-ui">
+        <div class="print-toolbar">
+            <button type="button" class="btn-back" onclick="closePrintPreview()">◀ عودة للتطبيق</button>
+            <button type="button" class="btn-print-action gallery" onclick="saveResidenceGallery()">🖼️ حفظ في المعرض</button>
+            <button type="button" class="btn-print-action pdf" onclick="saveResidencePdf()">📄 حفظ PDF</button>
+            <button type="button" class="btn-print-action" onclick="printResidenceDocuments()">🖨️ طباعة</button>
+        </div>
+
+        <div id="pages-container">
+            <!-- الصفحة الأولى (الأساسية) -->
+            <div class="a4-page" dir="ltr">
+                <div class="column-left">
+                    <div class="slot id-card"><img id="img-id-front"></div>
+                    <div class="slot id-card"><img id="img-id-back"></div>
+                    <div class="slot sakan-card"><img id="img-sakan-front"></div>
+                    <div class="slot sakan-card"><img id="img-sakan-back"></div>
+                </div>
+            </div>
+
+            <!-- الصفحة الثانية (أفراد العائلة) - تظهر فقط في حال الإضافة -->
+            <div class="a4-page" id="family-page" dir="ltr" style="display: none;">
+                <!-- الجهة اليمنى (الظهور) -->
+                <div class="family-column">
+                    <div class="slot id-card" id="slot-fam1-back" style="visibility:hidden;"><img id="img-fam1-back"></div>
+                    <div class="slot id-card" id="slot-fam2-back" style="visibility:hidden;"><img id="img-fam2-back"></div>
+                    <div class="slot id-card" id="slot-fam3-back" style="visibility:hidden;"><img id="img-fam3-back"></div>
+                    <div class="slot id-card" id="slot-fam4-back" style="visibility:hidden;"><img id="img-fam4-back"></div>
+                </div>
+                <!-- الجهة اليسرى (الوجوه) -->
+                <div class="family-column">
+                    <div class="slot id-card" id="slot-fam1-front" style="visibility:hidden;"><img id="img-fam1-front"></div>
+                    <div class="slot id-card" id="slot-fam2-front" style="visibility:hidden;"><img id="img-fam2-front"></div>
+                    <div class="slot id-card" id="slot-fam3-front" style="visibility:hidden;"><img id="img-fam3-front"></div>
+                    <div class="slot id-card" id="slot-fam4-front" style="visibility:hidden;"><img id="img-fam4-front"></div>
+                </div>
+            </div>
+            <div class="a4-page" id="extra-page" dir="ltr" style="display:none;align-items:flex-start;justify-content:center;gap:10mm;padding-top:15mm">
+                <div class="slot sakan-card" id="slot-ration" style="visibility:hidden"><img id="img-ration"></div>
+                <div class="slot sakan-card" id="slot-custom" style="visibility:hidden"><img id="img-custom"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- مدخلات الملفات (مخفية) -->
+    <!-- الأساسية -->
+    <input type="file" id="input-id-front" accept="image/*" style="display: none;" onchange="handleFile(event)">
+    <input type="file" id="input-id-back" accept="image/*" style="display: none;" onchange="handleFile(event)">
+    <input type="file" id="input-sakan-front" accept="image/*" style="display: none;" onchange="handleFile(event)">
+    <input type="file" id="input-sakan-back" accept="image/*" style="display: none;" onchange="handleFile(event)">
+    <input type="file" id="input-ration" accept="image/*" style="display:none" onchange="handleFile(event)">
+    <input type="file" id="input-custom" accept="image/*" style="display:none" onchange="handleFile(event)">
+    
+    <!-- العائلة -->
+    <input type="file" id="input-fam1-front" accept="image/*" style="display:none;" onchange="handleFile(event)">
+    <input type="file" id="input-fam1-back" accept="image/*" style="display:none;" onchange="handleFile(event)">
+    <input type="file" id="input-fam2-front" accept="image/*" style="display:none;" onchange="handleFile(event)">
+    <input type="file" id="input-fam2-back" accept="image/*" style="display:none;" onchange="handleFile(event)">
+    <input type="file" id="input-fam3-front" accept="image/*" style="display:none;" onchange="handleFile(event)">
+    <input type="file" id="input-fam3-back" accept="image/*" style="display:none;" onchange="handleFile(event)">
+    <input type="file" id="input-fam4-front" accept="image/*" style="display:none;" onchange="handleFile(event)">
+    <input type="file" id="input-fam4-back" accept="image/*" style="display:none;" onchange="handleFile(event)">
+
+    <script>
+        let cropper;
+        let currentInputId = '';
+        let currentRatioType = '';
+        let familyCount = 0;
+        const familyMembers = [];
+
+        /* بديل محلي يضمن استمرار القص حتى عند انقطاع الإنترنت وعدم تحميل Cropper.js. */
+        function cropBounds(image) {
+            const sw = image.naturalWidth || image.width;
+            const sh = image.naturalHeight || image.height;
+            const left = Number(document.getElementById('free-crop-left').value) / 100;
+            const right = Number(document.getElementById('free-crop-right').value) / 100;
+            const top = Number(document.getElementById('free-crop-top').value) / 100;
+            const bottom = Number(document.getElementById('free-crop-bottom').value) / 100;
+            return { sx: sw * left, sy: sh * top, cw: sw * Math.max(.1, right - left), ch: sh * Math.max(.1, bottom - top) };
+        }
+
+        function drawFreeCropPreview() {
+            const image = document.getElementById('image-to-crop');
+            if (!image.src || !image.complete) return;
+            const preview = document.getElementById('free-crop-preview');
+            const sw = image.naturalWidth || image.width;
+            const sh = image.naturalHeight || image.height;
+            const scale = Math.min(1, 680 / sw, 430 / sh);
+            preview.width = Math.max(1, Math.round(sw * scale));
+            preview.height = Math.max(1, Math.round(sh * scale));
+            const context = preview.getContext('2d');
+            context.drawImage(image, 0, 0, preview.width, preview.height);
+            const bounds = cropBounds(image);
+            const x = bounds.sx * scale, y = bounds.sy * scale, w = bounds.cw * scale, h = bounds.ch * scale;
+            context.fillStyle = 'rgba(0,0,0,.58)';
+            context.fillRect(0, 0, preview.width, y);
+            context.fillRect(0, y + h, preview.width, preview.height - y - h);
+            context.fillRect(0, y, x, h);
+            context.fillRect(x + w, y, preview.width - x - w, h);
+            context.strokeStyle = '#21d3b7';
+            context.lineWidth = 3;
+            context.setLineDash([10, 7]);
+            context.strokeRect(x, y, w, h);
+        }
+
+        function createOfflineCropper(image) {
+            return {
+                destroy() {},
+                getCroppedCanvas() {
+                    const sw = image.naturalWidth || image.width;
+                    const sh = image.naturalHeight || image.height;
+                    const { sx, sy, cw, ch } = cropBounds(image);
+                    const out = document.createElement('canvas');
+                    out.width = Math.max(1, Math.round(cw));
+                    out.height = Math.max(1, Math.round(out.width * ch / cw));
+                    const context = out.getContext('2d');
+                    context.imageSmoothingEnabled = true;
+                    context.imageSmoothingQuality = 'high';
+                    context.drawImage(image, sx, sy, cw, ch, 0, 0, out.width, out.height);
+                    return out;
+                }
+            };
+        }
+
+        function addFamilyMember() {
+            if (familyCount >= 4) {
+                alert('وصلت للحد الأقصى (4 أفراد) في الصفحة الثانية.');
+                return;
+            }
+            familyCount++;
+            const name = prompt('اسم فرد العائلة:', 'فرد ' + familyCount) || ('فرد ' + familyCount);
+            const relation = prompt('صلة القرابة (اختياري):', '') || '';
+            familyMembers[familyCount - 1] = { name, relation, active: true };
+            
+            // إظهار بطاقات الإدخال في الواجهة
+            document.getElementById(`ui-fam${familyCount}-front`).style.display = 'flex';
+            document.getElementById(`ui-fam${familyCount}-back`).style.display = 'flex';
+            
+            // إظهار الصفحة الثانية في الطباعة ومربعاتها
+            document.getElementById('family-page').style.display = 'flex';
+            document.getElementById(`slot-fam${familyCount}-front`).style.visibility = 'visible';
+            document.getElementById(`slot-fam${familyCount}-back`).style.visibility = 'visible';
+            renderFamilyMeta();
+        }
+
+        function renderFamilyMeta() {
+            const box = document.getElementById('family-meta-list');
+            box.innerHTML = familyMembers.map((member, index) => member && member.active ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;background:#fff;border-radius:10px;padding:7px;margin:5px 0;font-size:11px"><b>${escapeHtml(member.name)}${member.relation ? ' — ' + escapeHtml(member.relation) : ''}</b><span><button onclick="editFamilyMember(${index + 1})">تعديل</button> <button onclick="deleteFamilyMember(${index + 1})">حذف</button></span></div>` : '').join('');
+        }
+
+        function editFamilyMember(index) {
+            const member = familyMembers[index - 1]; if (!member || !member.active) return;
+            member.name = prompt('اسم فرد العائلة:', member.name) || member.name;
+            member.relation = prompt('صلة القرابة (اختياري):', member.relation) ?? member.relation;
+            document.querySelectorAll(`#ui-fam${index}-front h3,#ui-fam${index}-back h3`).forEach(node => node.textContent = member.name);
+            renderFamilyMeta();
+        }
+
+        function deleteFamilyMember(index) {
+            const member = familyMembers[index - 1]; if (!member || !confirm('حذف هذا الفرد وصور بطاقته؟')) return;
+            member.active = false;
+            ['front','back'].forEach(side => { const image = document.getElementById(`img-fam${index}-${side}`); image.removeAttribute('src'); image.style.display = 'none'; document.getElementById(`ui-fam${index}-${side}`).style.display = 'none'; document.getElementById(`slot-fam${index}-${side}`).style.visibility = 'hidden'; });
+            if (!familyMembers.some(item => item && item.active)) document.getElementById('family-page').style.display = 'none';
+            renderFamilyMeta();
+        }
+
+        function triggerInput(inputId, ratioType) {
+            currentInputId = inputId;
+            currentRatioType = ratioType; 
+            document.getElementById(inputId).click();
+        }
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const image = document.getElementById('image-to-crop');
+                    document.getElementById('crop-modal').style.display = 'flex';
+
+                    if (cropper) { cropper.destroy(); }
+                    ['left','top'].forEach(key => document.getElementById('free-crop-' + key).value = 0);
+                    ['right','bottom'].forEach(key => document.getElementById('free-crop-' + key).value = 100);
+
+                    image.onload = function() {
+                        cropper = createOfflineCropper(image);
+                        drawFreeCropPreview();
+                    };
+                    image.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+            event.target.value = ''; 
+        }
+
+        function cropAndSave() {
+            if (!cropper) return;
+            const canvas = cropper.getCroppedCanvas();
+            const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.99);
+
+            const typeKey = currentInputId.replace('input-', '');
+
+            const imgElement = document.getElementById('img-' + typeKey);
+            imgElement.src = croppedDataUrl;
+            imgElement.style.display = 'block';
+            if (typeKey === 'ration' || typeKey === 'custom') { document.getElementById('extra-page').style.display = 'flex'; document.getElementById('slot-' + typeKey).style.visibility = 'visible'; }
+
+            let cardId = typeKey.includes('fam') ? `ui-${typeKey}` : `card-${typeKey}`;
+            const card = document.getElementById(cardId);
+            const btn = document.getElementById('btn-' + typeKey);
+            const desc = document.getElementById('desc-' + typeKey);
+            
+            card.classList.add('success');
+            btn.innerHTML = '✔';
+            desc.innerHTML = 'تمت الإضافة بنجاح';
+
+            closeCropModal();
+        }
+
+        function closeCropModal() {
+            document.getElementById('crop-modal').style.display = 'none';
+            if (cropper) { cropper.destroy(); cropper = null; }
+        }
+
+        /* تصغير حجم المعاينة على شاشة الهاتف دون التأثير على الحفظ */
+        function scaleA4ForMobile() {
+            const container = document.getElementById('pages-container');
+            const screenWidth = window.innerWidth;
+            const a4PixelWidth = 794; // العرض التقريبي لـ A4 بالشاشة
+            const padding = 40; 
+
+            if (screenWidth < a4PixelWidth + padding) {
+                const scale = (screenWidth - padding) / a4PixelWidth;
+                container.style.transform = `scale(${scale})`;
+            } else {
+                container.style.transform = 'none';
+            }
+        }
+
+        function openPrintPreview() {
+            document.getElementById('app-ui').style.display = 'none';
+            document.getElementById('print-ui').style.display = 'flex';
+            scaleA4ForMobile(); 
+        }
+
+        function closePrintPreview() {
+            document.getElementById('print-ui').style.display = 'none';
+            document.getElementById('app-ui').style.display = 'flex';
+        }
+
+        function mmToPrintPx(mm, dpi) {
+            return Math.round(mm * dpi / 25.4);
+        }
+
+        function makeA4PrintCanvas(dpi) {
+            const canvas = document.createElement('canvas');
+            canvas.width = mmToPrintPx(210, dpi);
+            canvas.height = mmToPrintPx(297, dpi);
+            const context = canvas.getContext('2d');
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = 'high';
+            return canvas;
+        }
+
+        function printableImage(id) {
+            const image = document.getElementById(id);
+            return image && image.src && image.style.display !== 'none' ? image : null;
+        }
+
+        function drawPrintImage(context, id, x, y, width, height, dpi) {
+            const image = printableImage(id);
+            if (!image) return false;
+            context.drawImage(
+                image,
+                mmToPrintPx(x, dpi),
+                mmToPrintPx(y, dpi),
+                mmToPrintPx(width, dpi),
+                mmToPrintPx(height, dpi)
+            );
+            return true;
+        }
+
+        function createResidencePrintPages() {
+            const dpi = 300;
+            const pages = [];
+            const mainIds = ['img-id-front', 'img-id-back', 'img-sakan-front', 'img-sakan-back'];
+            if (mainIds.some(id => printableImage(id))) {
+                const main = makeA4PrintCanvas(dpi);
+                const context = main.getContext('2d');
+                drawPrintImage(context, 'img-id-front', 12, 10, 85.6, 53.98, dpi);
+                drawPrintImage(context, 'img-id-back', 112.4, 10, 85.6, 53.98, dpi);
+                drawPrintImage(context, 'img-sakan-front', 5, 82, 100, 70, dpi);
+                drawPrintImage(context, 'img-sakan-back', 105, 82, 100, 70, dpi);
+                pages.push(main);
+            }
+
+            const familyIds = [];
+            for (let index = 1; index <= 4; index++) {
+                familyIds.push(`img-fam${index}-front`, `img-fam${index}-back`);
+            }
+            if (familyIds.some(id => printableImage(id))) {
+                const family = makeA4PrintCanvas(dpi);
+                const context = family.getContext('2d');
+                const rows = [8, 83, 158, 233];
+                for (let index = 1; index <= 4; index++) {
+                    drawPrintImage(context, `img-fam${index}-back`, 15.7, rows[index - 1], 85.6, 54, dpi);
+                    drawPrintImage(context, `img-fam${index}-front`, 108.7, rows[index - 1], 85.6, 54, dpi);
+                }
+                pages.push(family);
+            }
+            if (printableImage('img-ration') || printableImage('img-custom')) {
+                const extra = makeA4PrintCanvas(dpi);
+                const context = extra.getContext('2d');
+                drawPrintImage(context, 'img-ration', 5, 15, 100, 70, dpi);
+                drawPrintImage(context, 'img-custom', 105, 15, 100, 70, dpi);
+                pages.push(extra);
+            }
+            return { dpi, pages };
+        }
+
+        function residenceBridge() {
+            return window.Android || (window.parent && window.parent.Android);
+        }
+
+        function logResidence(type, title, details) {
+            try {
+                const ops = window.AbuBassamOps || (window.parent && window.parent.AbuBassamOps);
+                if (ops && typeof ops.add === 'function') ops.add({ type, title, details: details || '' });
+            } catch (error) {}
+        }
+
+        function residencePageData() {
+            const result = createResidencePrintPages();
+            if (!result.pages.length) {
+                alert('أضف بطاقة أو مستندًا واحدًا على الأقل أولاً.');
+                return null;
+            }
+            return {
+                dpi: result.dpi,
+                pages: result.pages.map(page => page.toDataURL('image/jpeg', 0.98))
+            };
+        }
+
+        function saveResidenceGallery() {
+            const result = residencePageData();
+            if (!result) return;
+            const androidBridge = residenceBridge();
+            if (androidBridge && typeof androidBridge.savePagesToGallery === 'function') {
+                androidBridge.savePagesToGallery('Abu_Bassam_Documents_A4', JSON.stringify(result.pages), 'image/jpeg');
+            } else {
+                result.pages.forEach((data, index) => {
+                    const link = document.createElement('a');
+                    link.download = `Abu_Bassam_Documents_A4_${index + 1}.jpg`;
+                    link.href = data;
+                    setTimeout(() => link.click(), index * 250);
+                });
+            }
+            logResidence('gallery', 'حفظ البطاقة الوطنية وبطاقة السكن في المعرض', result.pages.length + ' صفحة A4');
+        }
+
+        function saveResidencePdf() {
+            const result = residencePageData();
+            if (!result) return;
+            try {
+                const pdfApi = window.jspdf || (window.parent && window.parent.jspdf);
+                if (!pdfApi || !pdfApi.jsPDF) throw new Error('محرك PDF غير جاهز');
+                const pdf = new pdfApi.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: false });
+                result.pages.forEach((data, index) => {
+                    if (index) pdf.addPage('a4', 'portrait');
+                    pdf.addImage(data, 'JPEG', 0, 0, 210, 297, undefined, 'NONE');
+                });
+                const name = 'Abu_Bassam_Documents_' + Date.now() + '.pdf';
+                const data = pdf.output('datauristring');
+                const androidBridge = residenceBridge();
+                if (androidBridge && typeof androidBridge.saveBase64 === 'function') androidBridge.saveBase64(name, 'application/pdf', data);
+                else pdf.save(name);
+                logResidence('pdf', 'حفظ البطاقة الوطنية وبطاقة السكن PDF', result.pages.length + ' صفحة A4');
+            } catch (error) {
+                alert(error.message || 'تعذر إنشاء PDF');
+            }
+        }
+
+        function printResidenceDocuments() {
+            const result = residencePageData();
+            if (!result) return;
+            const androidBridge = residenceBridge();
+            if (androidBridge && typeof androidBridge.printPages === 'function') {
+                androidBridge.printPages(JSON.stringify(result.pages), 'A4', result.dpi);
+                logResidence('print', 'طباعة البطاقة الوطنية وبطاقة السكن', result.pages.length + ' صفحة A4');
+                return;
+            }
+            logResidence('print', 'طباعة البطاقة الوطنية وبطاقة السكن', result.pages.length + ' صفحة A4');
+            window.print();
+        }
+
+        window.addEventListener('resize', () => {
+            if (document.getElementById('print-ui').style.display === 'flex') {
+                scaleA4ForMobile();
+            }
+        });
+
+        window.addEventListener('message', event => {
+            if (event.data && event.data.type === 'abuBassamTabVisible' && document.getElementById('print-ui').style.display === 'flex') {
+                scaleA4ForMobile();
+            }
+        });
+    </script>
+</body>
+</html>
