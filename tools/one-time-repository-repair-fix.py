@@ -37,7 +37,7 @@ new="need('web/permission-guard-runtime.js',['__ABU_PERMISSION_GUARD_V2__',\"ret
 s=s.replace(old,new)
 p.write_text(s,encoding='utf-8')
 
-# Remove retired question/compressor compatibility permission keys from the live permission runtime.
+# Remove retired question/compressor compatibility permission keys from live permission runtime.
 p=ROOT/'web'/'admin-permissions-runtime.js'
 s=p.read_text(encoding='utf-8')
 s=re.sub(r"\n\s*questionsView:'edit'.*?questionsMaintenance:'edit',",'',s)
@@ -52,7 +52,7 @@ s=s.replace("&&!i.adminOnly&&i.key!=='compressDeleteOriginal'","&&!i.adminOnly")
 s=s.replace("['printCards','printQuestions','printA4'","['printCards','printA4'")
 p.write_text(s,encoding='utf-8')
 
-# Build a forward-only database migration that retires the deleted section permission keys.
+# Build a forward-only database migration that retires deleted section permission keys.
 retired=['questionsView','questionsCreate','questionsEdit','questionsDelete','questionsTemplates','questionsCustomTemplates','questionsAnswersToggle','questionsImages','questionsPrint','questionsPdf','questionsReset','questionsMaintenance','compressUse','compressBatch','compressSave','compressExport','compressHighResolution','compressDeleteOriginal','printQuestions']
 items=[m.group(1) for m in re.finditer(r"\['([A-Za-z][A-Za-z0-9]+)','[^'\n]*',(true|false)\]",s)]
 active=[]
@@ -115,10 +115,19 @@ console.log(`Admin permissions current-state check passed: ${items.length} activ
 '''
 (ROOT/'tools'/'check_admin_permissions.js').write_text(checker,encoding='utf-8')
 
-# Align the OCR packaging check with the immutable-source cache path used by the clean build.
+# Align OCR packaging check with immutable-source cache path used by clean build.
 p=ROOT/'tools'/'check_document_vault_advanced.js'
 s=p.read_text(encoding='utf-8')
 s=s.replace("need(assets,'Offline OCR assets (Arabic + English) are embedded','offline OCR packaging confirmation');","need(assets,\".cache', 'ocr-tesseract-v5.1.1\",'OCR cache outside source tree');\nneed(assets,\"cp(cacheRoot,resolve(destination,'vendor','tesseract')\",'OCR cache copied into Android assets');\nneed(assets,'Failed to prepare pinned OCR asset','OCR download failure is explicit');")
 p.write_text(s,encoding='utf-8')
 
-print('Second-pass cleanup applied to settings, release identity, security checks, permissions, OCR packaging check, and forward database retirement migration.')
+# Customer camera framing is now real native source, not a build-time patch.
+p=ROOT/'tools'/'check_customer_documents.js'
+s=p.read_text(encoding='utf-8')
+s=s.replace("const patch=read('scripts/patch-customer-camera.mjs');","const native=read('index.js');")
+s=s.replace("need(patch,\"cardDocumentFrame\",'ID-card live camera frame');","need(native,\"cardDocumentFrame\",'ID-card live camera frame in authoritative native source');")
+s=s.replace("need(patch,\"photoDocumentFrame\",'portrait live camera frame');","need(native,\"photoDocumentFrame\",'portrait live camera frame in authoritative native source');")
+s=s.replace("need(patch,\"message.frameKind\",'native bridge frame kind');","need(native,\"message.frameKind\",'native bridge frame kind in authoritative native source');\nneed(native,\"cameraFrameKind\",'native camera frame state');")
+p.write_text(s,encoding='utf-8')
+
+print('Second-pass cleanup applied to settings, release identity, security checks, permissions, OCR, customer camera check, and forward database retirement migration.')
