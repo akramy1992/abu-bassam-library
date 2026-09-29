@@ -55,7 +55,6 @@ p.write_text(s,encoding='utf-8')
 # Build a forward-only database migration that retires the deleted section permission keys.
 retired=['questionsView','questionsCreate','questionsEdit','questionsDelete','questionsTemplates','questionsCustomTemplates','questionsAnswersToggle','questionsImages','questionsPrint','questionsPdf','questionsReset','questionsMaintenance','compressUse','compressBatch','compressSave','compressExport','compressHighResolution','compressDeleteOriginal','printQuestions']
 items=[m.group(1) for m in re.finditer(r"\['([A-Za-z][A-Za-z0-9]+)','[^'\n]*',(true|false)\]",s)]
-# Above s currently holds admin runtime text.
 active=[]
 for k in items:
     if k not in active: active.append(k)
@@ -116,4 +115,10 @@ console.log(`Admin permissions current-state check passed: ${items.length} activ
 '''
 (ROOT/'tools'/'check_admin_permissions.js').write_text(checker,encoding='utf-8')
 
-print('Second-pass cleanup applied to settings, release identity, security checks, permissions, and forward database retirement migration.')
+# Align the OCR packaging check with the immutable-source cache path used by the clean build.
+p=ROOT/'tools'/'check_document_vault_advanced.js'
+s=p.read_text(encoding='utf-8')
+s=s.replace("need(assets,'Offline OCR assets (Arabic + English) are embedded','offline OCR packaging confirmation');","need(assets,\".cache', 'ocr-tesseract-v5.1.1\",'OCR cache outside source tree');\nneed(assets,\"cp(cacheRoot,resolve(destination,'vendor','tesseract')\",'OCR cache copied into Android assets');\nneed(assets,'Failed to prepare pinned OCR asset','OCR download failure is explicit');")
+p.write_text(s,encoding='utf-8')
+
+print('Second-pass cleanup applied to settings, release identity, security checks, permissions, OCR packaging check, and forward database retirement migration.')
