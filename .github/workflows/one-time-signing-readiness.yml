@@ -1,0 +1,42 @@
+name: One-time production signing readiness
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-signing-readiness.yml'
+permissions:
+  contents: read
+jobs:
+  signing-readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD != '' }}
+      HAS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS != '' }}
+      HAS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD != '' }}
+    steps:
+      - name: Verify required signing secrets exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in HAS_KEYSTORE HAS_STORE_PASSWORD HAS_ALIAS HAS_KEY_PASSWORD; do
+            if [ "${!name}" != "true" ]; then
+              echo "Missing required production signing secret marker: $name"
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
+      - name: Decode and validate production keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > /tmp/abu-bassam-release.p12
+          test -s /tmp/abu-bassam-release.p12
+          keytool -list -v -storetype PKCS12 -keystore /tmp/abu-bassam-release.p12 -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" | grep -E 'SHA256:|Valid from:|Entry type:'
+          rm -f /tmp/abu-bassam-release.p12
