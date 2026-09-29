@@ -7,7 +7,7 @@ const $=id=>document.getElementById(id);
 const LEGACY_TRUST_KEY='abuBassamSecurityTrustV1';
 const SECURE_TRUST_KEY='abu_bassam_offline_trust_v2';
 const SECRET_KEY='abu_bassam_device_secret_v1';
-const APP_VERSION='5.0.0';
+const APP_VERSION='6.0.0';
 const OFFLINE_GRACE_MS=12*60*60*1000;
 const CLOCK_SKEW_MS=5*60*1000;
 const LOCK_MINUTES_KEY='abuBassamSecurityLockMinutesV1';
