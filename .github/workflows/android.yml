@@ -18,25 +18,26 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
+      NODE_ENV: production
       REQUEST_PRODUCTION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_mode == 'production' }}
       HAS_ANDROID_RELEASE_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
       - name: Remove generated build/install artifacts
         run: rm -rf android dist .expo
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: 20
           cache: npm
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6.0.1
         with:
           distribution: temurin
           java-version: 17
       - name: Cache pinned OCR assets
-        uses: actions/cache@v4
+        uses: actions/cache@v6.1.0
         with:
           path: .cache/ocr-tesseract-v5.1.1
           key: abu-bassam-ocr-tesseract-5.1.1-ara-eng-v4
@@ -93,7 +94,7 @@ jobs:
             printf 'test-release-default-key-with-embedded-js-NOT-FOR-PRODUCTION-UPDATES\n' > dist/BUILD_TYPE.txt
           fi
       - name: Upload APK artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: abu-bassam-android-${{ github.sha }}
           path: |
