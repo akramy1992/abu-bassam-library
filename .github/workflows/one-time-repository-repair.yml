@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/one-time-repository-repair.yml'
+      - 'tools/one-time-repository-repair-fix.py'
   workflow_dispatch:
 permissions:
   contents: write
@@ -25,7 +26,9 @@ jobs:
           distribution: temurin
           java-version: 17
       - name: Apply one-time source repair
-        run: python3 tools/one-time-repository-repair.py
+        run: |
+          python3 tools/one-time-repository-repair.py
+          python3 tools/one-time-repository-repair-fix.py
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
       - name: Run strict source checks
@@ -56,6 +59,7 @@ jobs:
         run: |
           rm -rf android dist .expo .cache web/vendor/tesseract
           rm -f tools/one-time-repository-repair.py
+          rm -f tools/one-time-repository-repair-fix.py
           rm -f .github/workflows/one-time-repository-repair.yml
           rm -f .github/workflows/audit-current-main.yml
       - name: Commit only validated source
