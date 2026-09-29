@@ -1,12 +1,11 @@
 (() => {
   'use strict';
-  const DEVICE_ID_KEY = 'abuBassamLockedDeviceIdV3';
-  const DEVICE_NAME_KEY = 'abuBassamLockedDeviceNameV3';
-  const DEVICE_CREATED_KEY = 'abuBassamLockedDeviceCreatedV3';
+  const DEVICE_ID_KEY = 'abuBassamLockedDeviceIdV5';
+  const DEVICE_NAME_KEY = 'abuBassamLockedDeviceNameV5';
+  const DEVICE_CREATED_KEY = 'abuBassamLockedDeviceCreatedV5';
   const APP_VERSION = '6.0.0';
-
-  function uuid() { return globalThis.crypto?.randomUUID?.() || `device-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
-  function platform() { const agent=navigator.userAgent||''; if(/Android/i.test(agent))return'Android';if(/Windows/i.test(agent))return'Windows';if(/iPhone|iPad/i.test(agent))return'iOS';return'جهاز آخر'; }
+  function uuid(){return globalThis.crypto?.randomUUID?.()||`device-${Date.now()}-${Math.random().toString(36).slice(2)}`}
+  function platform(){const agent=navigator.userAgent||'';if(/Android/i.test(agent))return'Android';if(/Windows/i.test(agent))return'Windows';if(/iPhone|iPad/i.test(agent))return'iOS';return'جهاز آخر'}
   function normalizeName(value){return String(value||'').trim()||'جهاز المكتبة'}
   function signalBootReady(){try{window.ReactNativeWebView?.postMessage(JSON.stringify({type:'webBootReady',at:Date.now()}))}catch(_){}}
   function dismissSplash(){const splash=document.getElementById('splash');if(!splash)return;splash.style.transition='none';splash.style.opacity='0';splash.style.visibility='hidden';splash.style.display='none';splash.setAttribute('aria-hidden','true')}
@@ -31,19 +30,27 @@
   function loadLoginThrottleFix(){loadScript('abuLoginThrottleFixRuntime','login-throttle-fix-runtime.js','__ABU_LOGIN_THROTTLE_FIX_V1__')}
   function loadLoginInputDirection(){loadScript('abuLoginInputDirectionRuntime','login-input-direction-runtime.js','__ABU_LOGIN_INPUT_DIRECTION_V1__')}
   function loadPasswordPolicy(){loadScript('abuPasswordPolicyRuntime','password-policy-runtime.js','__ABU_PASSWORD_POLICY_V1__')}
+  function loadMediaPipePin(){loadScript('abuMediaPipePinRuntime','mediapipe-pin-runtime.js','__ABU_MEDIAPIPE_PIN_V1__')}
   function loadSettingsCorrections(){loadScript('abuSettingsCorrectionsRuntime','settings-corrections-runtime.js','__ABU_SETTINGS_CORRECTIONS_V1__')}
   function loadWifiSyncGuard(){loadScript('abuWifiSyncGuardRuntime','wifi-sync-guard-runtime.js','__ABU_WIFI_SYNC_GUARD_V1__')}
+  function loadSecurityBootstrapGuard(onload){loadScript('abuSecurityBootstrapGuardRuntime','security-bootstrap-guard-runtime.js','__ABU_SECURITY_BOOTSTRAP_GUARD_V1__',onload)}
   function loadSecurityHardening(){loadScript('abuSecurityHardeningRuntime','security-hardening-runtime.js','__ABU_SECURITY_HARDENING_V2__')}
   function loadNotificationCorrections(){loadScript('abuNotificationCenterCorrectionsRuntime','notification-center-corrections-runtime.js','__ABU_NOTIFICATION_CENTER_CORRECTIONS_V2__')}
+  function loadNotificationExcel(){loadScript('abuNotificationExcelRuntime','notification-excel-runtime.js','__ABU_NOTIFICATION_EXCEL_V1__')}
+  function loadFailClosedRuntime(onload){loadScript('abuFailClosedRuntime','fail-closed-runtime.js','__ABU_FAIL_CLOSED_RUNTIME_V1__',onload)}
   function loadBranchVault(){loadScript('abuBranchVaultRuntime','branch-vault-runtime.js','__ABU_BRANCH_VAULT_V1__')}
   function loadDocumentVaultHardening(){loadScript('abuDocumentVaultHardeningRuntime','document-vault-hardening-runtime.js','__ABU_DOCUMENT_VAULT_HARDENING_V1__')}
+  function loadBackupCenter(){loadScript('abuBackupCenterRuntime','backup-center-runtime.js','__ABU_BACKUP_CENTER_V1__')}
+  function loadAppUpdate(){loadScript('abuAppUpdateRuntime','app-update-runtime.js','__ABU_APP_UPDATE_V1__')}
+  function loadAccountRecoveryHardening(){loadScript('abuAccountRecoveryHardeningRuntime','account-recovery-hardening-runtime.js','__ABU_ACCOUNT_RECOVERY_HARDENING_V1__')}
+  function loadAccountCenter(){loadScript('abuAccountCenterRuntime','account-center-runtime.js','__ABU_ACCOUNT_CENTER_V1__',()=>setTimeout(loadAccountRecoveryHardening,0))}
   function loadDocumentVaultPermissionGuard(){loadScript('abuDocumentVaultPermissionGuardRuntime','document-vault-permission-guard-runtime.js','__ABU_DOCUMENT_VAULT_PERMISSION_GUARD_V1__')}
   function loadEncryptedVaultHardening(){loadScript('abuEncryptedVaultHardeningRuntime','encrypted-vault-hardening-runtime.js','__ABU_ENCRYPTED_VAULT_HARDENING_V1__')}
   function loadOperationLogStorageMigration(){loadScript('abuOperationLogStorageMigrationRuntime','operation-log-storage-migration-runtime.js','__ABU_OPERATION_LOG_STORAGE_MIGRATION_V1__')}
   function loadOperationLogCorrections(){loadScript('abuOperationLogCorrectionsRuntime','operation-log-corrections-runtime.js','__ABU_OPERATION_LOG_CORRECTIONS_V2__',()=>setTimeout(loadOperationLogStorageMigration,0))}
   function loadSecurityExtras(){loadScript('abuSecurityExtrasRuntime','security-extras-runtime.js','__ABU_SECURITY_EXTRAS_V1__',()=>{setTimeout(loadPermissionGuard,20);setTimeout(loadLoginThrottleFix,35);setTimeout(loadLoginInputDirection,45);setTimeout(loadPasswordPolicy,55)})}
-  function loadSecurity(){loadScript('abuAppSecurityRuntime','app-security-runtime.js','__ABU_APP_SECURITY_V1__',()=>{loadSecurityHardening();setTimeout(loadSecurityExtras,20);setTimeout(loadDeviceReconcile,40);setTimeout(loadAdminPermissions,80);setTimeout(loadPermissionSectionGuards,130);setTimeout(loadCustomerPermissionsHardening,160);setTimeout(loadLoginInputDirection,50);setTimeout(loadPasswordPolicy,90)})}
-  function loadApprovedUi(){loadFeatureRecovery();loadChildTemplates();loadCardModels();loadStandaloneCardModels();loadStrictWorkflow();loadStandaloneFold();loadWifiSyncGuard();loadNotificationCorrections();loadSecurity();loadBranchVault();loadDocumentVaultHardening();loadDocumentVaultPermissionGuard();loadEncryptedVaultHardening();loadSettingsCorrections();loadOperationLogCorrections();loadCustomerPermissionsHardening();setTimeout(loadAdminPermissions,180);setTimeout(loadPermissionSectionGuards,280);setTimeout(loadCustomerPermissionsHardening,320)}
+  function loadSecurity(){const start=()=>loadScript('abuAppSecurityRuntime','app-security-runtime.js','__ABU_APP_SECURITY_V1__',()=>{loadSecurityHardening();setTimeout(loadSecurityExtras,20);setTimeout(loadDeviceReconcile,40);setTimeout(loadAdminPermissions,80);setTimeout(loadPermissionSectionGuards,130);setTimeout(loadCustomerPermissionsHardening,160);setTimeout(loadLoginInputDirection,50);setTimeout(loadPasswordPolicy,90)});if(window.__ABU_SECURITY_BOOTSTRAP_GUARD_V1__)start();else loadSecurityBootstrapGuard(start)}
+  function loadApprovedUi(){loadPasswordPolicy();loadMediaPipePin();loadFeatureRecovery();loadChildTemplates();loadCardModels();loadStandaloneCardModels();loadStrictWorkflow();loadStandaloneFold();loadWifiSyncGuard();loadNotificationCorrections();loadNotificationExcel();loadSecurity();loadFailClosedRuntime(loadBranchVault);loadDocumentVaultHardening();setTimeout(loadBackupCenter,120);setTimeout(loadAccountCenter,180);setTimeout(loadAppUpdate,240);loadDocumentVaultPermissionGuard();loadEncryptedVaultHardening();loadSettingsCorrections();loadOperationLogCorrections();loadCustomerPermissionsHardening();setTimeout(loadAdminPermissions,180);setTimeout(loadPermissionSectionGuards,280);setTimeout(loadCustomerPermissionsHardening,320)}
   installSplashWatchdog();
   window.AbuBassamDevices={get:current,name:deviceName,ensure:ensureIdentity,heartbeat,list,version:APP_VERSION};window.AbuBassamDeviceName=deviceName;
   window.addEventListener('DOMContentLoaded',()=>{ensureIdentity();loadApprovedUi();signalBootReady();setTimeout(heartbeat,800);setInterval(()=>{if(document.visibilityState!=='hidden')heartbeat()},120000)});
