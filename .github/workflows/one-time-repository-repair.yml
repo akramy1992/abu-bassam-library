@@ -1,0 +1,70 @@
+name: One-time repository repair and build validation
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-repository-repair.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  repair-validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Apply one-time source repair
+        run: python3 tools/one-time-repository-repair.py
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run strict source checks
+        run: npm run check:web
+      - name: Verify Expo configuration
+        run: npx expo config --type public >/tmp/expo-config.json
+      - name: Generate Android from clean source
+        env:
+          CI: '1'
+        run: npm run android:prebuild
+      - name: Build test release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      - name: Verify built APK and embedded JS
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(ls android/app/build/outputs/apk/release/*.apk | head -n1)"
+          test -s "$APK"
+          unzip -l "$APK" | grep -q 'assets/index.android.bundle'
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          VERSION="$(node -p "require('./app.json').expo.version")"
+          test "$VERSION" = '6.0.0'
+          grep -q "const APP_VERSION = '6.0.0';" index.js
+          grep -q "const BUILD_NUMBER = '600';" index.js
+      - name: Remove generated and one-time files before commit
+        run: |
+          rm -rf android dist .expo .cache web/vendor/tesseract
+          rm -f tools/one-time-repository-repair.py
+          rm -f .github/workflows/one-time-repository-repair.yml
+          rm -f .github/workflows/audit-current-main.yml
+      - name: Commit only validated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'refactor: make clean source authoritative and release-ready'
+          git push origin main
