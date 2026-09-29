@@ -2,14 +2,14 @@
 'use strict';
 if(window.__ABU_BRANCH_VAULT_V1__)return;
 window.__ABU_BRANCH_VAULT_V1__=true;
-const SECRET_KEY='abu_bassam_device_secret_v1',BUCKET='abu-bassam-private',SCOPE_KEY='abuBassamVaultLocalScopeV1';
+const SECRET_KEY='abu_bassam_device_secret_v1',SECURE_STORAGE_REQUIRED='SECURE_STORAGE_REQUIRED',BUCKET='abu-bassam-private',SCOPE_KEY='abuBassamVaultLocalScopeV1';
 const VAULT_DEFAULT={vaultView:true,vaultAdd:true,vaultEdit:true,vaultDelete:true,vaultExport:true,vaultSync:true,vaultBackup:true};
 const LABELS={vaultView:'عرض ملفات الحفظ',vaultAdd:'إضافة ملفات للحفظ',vaultEdit:'تعديل/تسمية/نقل',vaultDelete:'حذف الملفات',vaultExport:'حفظ/تصدير/مشاركة',vaultSync:'مزامنة ملفات الفرع',vaultBackup:'النسخ الاحتياطي والاستعادة'};
 const pending=new Map(),pathToId=new Map();let seq=0,bridgeInstalled=false,cloudPatched=false,securityPatched=false,vaultPatched=false,permWrapped=false;
 function role(){return window.AbuBassamSecurity?.role?.()||''}
 function device(){const s=window.AbuBassamSecurity?.device?.()||{},d=window.AbuBassamDevices?.ensure?.()||{};return{id:String(s.device_id||s.id||d.device_id||d.id||localStorage.getItem('abuBassamLockedDeviceIdV3')||'').trim(),name:String(s.device_name||s.name||d.device_name||d.name||localStorage.getItem('abuBassamLockedDeviceNameV3')||'هذا الفرع').trim()||'هذا الفرع',permissions:s.permissions||{}}}
 function installBridge(){if(bridgeInstalled)return;bridgeInstalled=true;const previous=window.AbuBassamNativeSecurityResult;const handler=function(message){const data=typeof message==='string'?(()=>{try{return JSON.parse(message)}catch(_){return{}}})():message||{},slot=pending.get(data.requestId);if(slot){clearTimeout(slot.timer);pending.delete(data.requestId);data.ok===false?slot.reject(new Error(data.error||'تعذر الوصول إلى التخزين الآمن')):slot.resolve(data.value);return}if(typeof previous==='function')previous(message)};handler.__abuBranchVaultBridge=true;handler.__abuPrevious=previous;window.AbuBassamNativeSecurityResult=handler}
-function native(action,payload={}){installBridge();if(!(window.Android&&typeof Android.security==='function'))return Promise.resolve(action==='secureGet'?localStorage.getItem('__dev_secure_'+payload.key)||'':null);return new Promise((resolve,reject)=>{const requestId='branch-vault-'+Date.now()+'-'+(++seq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('انتهت مهلة التحقق من الفرع'))},12000);pending.set(requestId,{resolve,reject,timer});Android.security(action,requestId,payload)})}
+function native(action,payload={}){installBridge();if(!(window.Android&&typeof Android.security==='function'))return Promise.reject(new Error(SECURE_STORAGE_REQUIRED));return new Promise((resolve,reject)=>{const requestId='branch-vault-'+Date.now()+'-'+(++seq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('انتهت مهلة التحقق من الفرع'))},12000);pending.set(requestId,{resolve,reject,timer});Android.security(action,requestId,payload)})}
 async function secret(){return String(await native('secureGet',{key:SECRET_KEY})||'')}
 function allowed(key){if(role()==='owner')return true;const d=device();return d.permissions?.[key]!==false}
 function deny(key){alert('هذه الصلاحية معطلة لهذا الفرع من قبل الأدمن: '+(LABELS[key]||key));return false}

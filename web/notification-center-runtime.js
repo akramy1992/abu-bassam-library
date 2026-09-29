@@ -77,7 +77,7 @@ function unreadCount(){return load().filter(x=>!x.read).length}
 function updateBadge(){const n=unreadCount(),badge=$('abuNotificationBadge');if(!badge)return;badge.textContent=n>99?'99+':String(n);badge.style.display=n?'grid':'none';const btn=$('abuNotificationBell');if(btn)btn.setAttribute('aria-label',n?`الإشعارات، ${n} غير مقروء`:'الإشعارات')}
 
 function nativeRequest(action,payload={}){
-  if(!(window.Android&&typeof Android.security==='function'))return Promise.resolve(localStorage.getItem('__dev_secure_'+payload.key)||'');
+  if(!(window.Android&&typeof Android.security==='function'))return Promise.resolve('');
   return new Promise((resolve,reject)=>{const requestId='notify-'+Date.now()+'-'+(++seq),timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('انتهت مهلة العملية'))},12000);pending.set(requestId,{resolve,reject,timer});Android.security(action,requestId,payload)})
 }
 window.AbuBassamNativeSecurityResult=function(message){const data=typeof message==='string'?(()=>{try{return JSON.parse(message)}catch(_){return{}}})():message||{},slot=pending.get(data.requestId);if(slot){clearTimeout(slot.timer);pending.delete(data.requestId);data.ok===false?slot.reject(new Error(data.error||'تعذر تنفيذ العملية')):slot.resolve(data.value);return}if(typeof previousNativeResult==='function')previousNativeResult(message)};
