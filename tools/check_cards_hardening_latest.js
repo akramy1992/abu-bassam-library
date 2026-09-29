@@ -3,11 +3,12 @@ function read(p){if(!fs.existsSync(p))throw new Error(`missing ${p}`);return fs.
 function need(src,token,label){if(!src.includes(token))throw new Error(`cards latest hardening failed: ${label}`)}
 function reject(src,token,label){if(src.includes(token))throw new Error(`cards latest hardening failed: ${label}`)}
 const fixes=read('web/cards-hardening-fixes-runtime.js');
+const hard=read('web/cards-hardening-runtime.js');
 const upgrades=read('web/cards-section-upgrades-runtime.js');
 const finalAudit=read('web/cards-final-audit-runtime.js');
 const envelopePreload=read('web/envelope-preload-runtime.js');
 const plus=read('web/card-models-plus-runtime.js');
-new Function(fixes);new Function(upgrades);new Function(finalAudit);new Function(envelopePreload);new Function(plus);
+new Function(fixes);new Function(hard);new Function(upgrades);new Function(finalAudit);new Function(envelopePreload);new Function(plus);
 need(upgrades,'cards-hardening-fixes-runtime.js','latest hardening runtime is not loaded');
 need(upgrades,'__ABU_CARDS_HARDENING_FIXES_V2__','loader must target V2 hardening guard');
 need(upgrades,'cards-final-audit-runtime.js','final card audit runtime must be loaded');
@@ -37,7 +38,6 @@ need(fixes,"['cardsEdit','cardsEditImage']",'image replacement must require edit
 need(fixes,"['cardsEdit','cardsEditText']",'text editing must require edit and text permissions');
 need(fixes,'cardsManageCustomTemplates','custom template management permission is not enforced');
 need(fixes,'cardsTemplatesEdit','template edit/select permission is not enforced');
-need(fixes,'__abuTemplateDeleteGuard=prev.__abuTemplateDeleteGuard===true','envelope delete protection must preserve the template permission guard');
 need(fixes,'refreshStandaloneTemplateState','standalone edits must be rebound when the template changes');
 need(fixes,'const idx=index++','standalone element indexing must match the base editor key order');
 need(fixes,"[file,template,frameSide(el),el.id||('e'+idx)]",'standalone layout key must include the active template');
@@ -61,6 +61,10 @@ need(fixes,"cardsExportPdf','pdfCreate','pdfSave",'PDF export must require PDF p
 need(fixes,"cardsPrint','printCards','printGeneral",'card printing must require card and global print permissions');
 need(envelopePreload,"item.id==='env-10'",'legacy env-10 cleanup is missing');
 reject(envelopePreload,"id:'env-10'",'obsolete env-10 template is still being injected');
+need(envelopePreload,"state.templateId==='env-10'",'saved obsolete env-10 state must be detected');
+need(envelopePreload,"state.templateId='env-1'",'saved obsolete env-10 state must migrate to env-1');
+reject(fixes,'env-10','obsolete env-10 protection remains in final fixes runtime');
+reject(hard,'env-10','obsolete env-10 promotion remains in hardening runtime');
 need(plus,'__ABU_CARD_MODELS_PLUS_RETIRED__','obsolete extra-card injector must stay retired');
 reject(plus,"personal-6','personal-7",'obsolete personal models are still exposed');
 reject(fixes,"const can=k=>window.AbuBassamPermissions?.can?.(k)!==false",'fail-open permission helper returned');
