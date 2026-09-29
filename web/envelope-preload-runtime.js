@@ -6,9 +6,14 @@ try{
   const raw=localStorage.getItem(KEY);
   if(raw){
     const state=JSON.parse(raw);
-    if(state&&typeof state.html==='string'){
-      state.html=clean(state.html);
-      localStorage.setItem(KEY,JSON.stringify(state));
+    if(state&&typeof state==='object'){
+      let changed=false;
+      if(state.templateId==='env-10'){state.templateId='env-1';changed=true}
+      if(typeof state.html==='string'){
+        const html=clean(state.html);
+        if(html!==state.html){state.html=html;changed=true}
+      }
+      if(changed)localStorage.setItem(KEY,JSON.stringify(state));
     }
   }
   let list=[];
