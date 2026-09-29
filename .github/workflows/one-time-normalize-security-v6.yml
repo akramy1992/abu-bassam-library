@@ -1,0 +1,43 @@
+name: One-time normalize security V6
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-normalize-security-v6.yml'
+permissions:
+  contents: write
+jobs:
+  normalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Normalize secure runtimes without global event cancellation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ['web/app-security-runtime.js','web/security-hardening-runtime.js']:
+              p=Path(name); s=p.read_text(); s=s.replace("APP_VERSION='5.0.0'","APP_VERSION='6.0.0'"); p.write_text(s)
+          for name in ['web/fail-closed-runtime.js','web/password-policy-runtime.js']:
+              p=Path(name); s=p.read_text(); s=s.replace('stopImmediatePropagation()','stopPropagation()'); p.write_text(s)
+          p=Path('tools/check_legacy_security_debt.js'); s=p.read_text()
+          s=s.replace(",'stopImmediatePropagation'",'')
+          s=s.replace("APP_VERSION='5.0.0'","APP_VERSION='6.0.0'")
+          s=s.replace('app-security V5 identity missing','app-security V6 identity missing')
+          s=s.replace('security-hardening V5 identity missing','security-hardening V6 identity missing')
+          s=s.replace('app security/offline trust are locked to V5 identity','app security/offline trust are locked to the V5 device identity with the current V6 app version')
+          p.write_text(s)
+          PY
+          ! grep -R "stopImmediatePropagation" web/fail-closed-runtime.js web/password-policy-runtime.js
+          grep -q "APP_VERSION='6.0.0'" web/app-security-runtime.js
+          grep -q "APP_VERSION='6.0.0'" web/security-hardening-runtime.js
+          git config user.name akramy1992
+          git config user.email azaki6531@gmail.com
+          git add web/app-security-runtime.js web/security-hardening-runtime.js web/fail-closed-runtime.js web/password-policy-runtime.js tools/check_legacy_security_debt.js
+          git commit -m 'security: normalize V6 identity and avoid immediate event cancellation'
+          git push origin HEAD:main
