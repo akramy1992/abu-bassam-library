@@ -538,74 +538,58 @@ C/ Illustrate with a diagram the parts of the skeletal system.</div>
         }
 
         function setupDragAndResize(wrapper, moveHandle, resizeHandle) {
-            let isDragging = false, isResizing = false;
-            let startX, startY, startLeft, startTop, startWidth, startHeight;
-
-            if(moveHandle) {
-                moveHandle.addEventListener('mousedown', dragStart); 
-                moveHandle.addEventListener('touchstart', dragStart, {passive: false});
+            if(moveHandle && moveHandle.dataset.pointerBound !== '1') {
+                moveHandle.dataset.pointerBound = '1';
+                moveHandle.style.touchAction = 'none';
+                let dragPointer = null, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+                moveHandle.addEventListener('pointerdown', e => {
+                    if (dragPointer !== null) return;
+                    e.preventDefault();
+                    dragPointer = e.pointerId;
+                    startX = e.clientX; startY = e.clientY;
+                    startLeft = wrapper.offsetLeft; startTop = wrapper.offsetTop;
+                    try { moveHandle.setPointerCapture(e.pointerId); } catch (_) {}
+                });
+                moveHandle.addEventListener('pointermove', e => {
+                    if (e.pointerId !== dragPointer) return;
+                    e.preventDefault();
+                    wrapper.style.left = (startLeft + (e.clientX - startX) / currentScale) + 'px';
+                    wrapper.style.top = (startTop + (e.clientY - startY) / currentScale) + 'px';
+                });
+                const endDrag = e => {
+                    if (e.pointerId !== dragPointer) return;
+                    try { moveHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+                    dragPointer = null;
+                };
+                moveHandle.addEventListener('pointerup', endDrag);
+                moveHandle.addEventListener('pointercancel', endDrag);
             }
 
-            function dragStart(e) {
-                e.preventDefault(); 
-                isDragging = true;
-                startX = e.touches ? e.touches[0].clientX : e.clientX; 
-                startY = e.touches ? e.touches[0].clientY : e.clientY;
-                startLeft = wrapper.offsetLeft; 
-                startTop = wrapper.offsetTop;
-                document.addEventListener('mousemove', dragMove); 
-                document.addEventListener('touchmove', dragMove, {passive: false});
-                document.addEventListener('mouseup', dragEnd); 
-                document.addEventListener('touchend', dragEnd);
-            }
-            function dragMove(e) {
-                if (!isDragging) return; 
-                e.preventDefault();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                wrapper.style.left = (startLeft + (clientX - startX) / currentScale) + 'px'; 
-                wrapper.style.top = (startTop + (clientY - startY) / currentScale) + 'px';
-            }
-            function dragEnd() { 
-                isDragging = false; 
-                document.removeEventListener('mousemove', dragMove); 
-                document.removeEventListener('touchmove', dragMove); 
-                document.removeEventListener('mouseup', dragEnd);
-                document.removeEventListener('touchend', dragEnd);
-            }
-
-            if(resizeHandle) {
-                resizeHandle.addEventListener('mousedown', resizeStart); 
-                resizeHandle.addEventListener('touchstart', resizeStart, {passive: false});
-            }
-
-            function resizeStart(e) {
-                e.preventDefault(); e.stopPropagation(); 
-                isResizing = true;
-                startX = e.touches ? e.touches[0].clientX : e.clientX; 
-                startY = e.touches ? e.touches[0].clientY : e.clientY;
-                startWidth = wrapper.offsetWidth; 
-                startHeight = wrapper.offsetHeight;
-                document.addEventListener('mousemove', resizeMove); 
-                document.addEventListener('touchmove', resizeMove, {passive: false});
-                document.addEventListener('mouseup', resizeEnd); 
-                document.addEventListener('touchend', resizeEnd);
-            }
-            function resizeMove(e) {
-                if (!isResizing) return; 
-                e.preventDefault();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                // In LTR, dragging the right edge to the right increases width
-                wrapper.style.width = Math.max(50, startWidth + (clientX - startX) / currentScale) + 'px'; 
-                wrapper.style.height = Math.max(50, startHeight + (clientY - startY) / currentScale) + 'px';
-            }
-            function resizeEnd() { 
-                isResizing = false; 
-                document.removeEventListener('mousemove', resizeMove); 
-                document.removeEventListener('touchmove', resizeMove); 
-                document.removeEventListener('mouseup', resizeEnd);
-                document.removeEventListener('touchend', resizeEnd);
+            if(resizeHandle && resizeHandle.dataset.pointerBound !== '1') {
+                resizeHandle.dataset.pointerBound = '1';
+                resizeHandle.style.touchAction = 'none';
+                let resizePointer = null, startX = 0, startY = 0, startWidth = 0, startHeight = 0;
+                resizeHandle.addEventListener('pointerdown', e => {
+                    if (resizePointer !== null) return;
+                    e.preventDefault(); e.stopPropagation();
+                    resizePointer = e.pointerId;
+                    startX = e.clientX; startY = e.clientY;
+                    startWidth = wrapper.offsetWidth; startHeight = wrapper.offsetHeight;
+                    try { resizeHandle.setPointerCapture(e.pointerId); } catch (_) {}
+                });
+                resizeHandle.addEventListener('pointermove', e => {
+                    if (e.pointerId !== resizePointer) return;
+                    e.preventDefault();
+                    wrapper.style.width = Math.max(50, startWidth + (e.clientX - startX) / currentScale) + 'px';
+                    wrapper.style.height = Math.max(50, startHeight + (e.clientY - startY) / currentScale) + 'px';
+                });
+                const endResize = e => {
+                    if (e.pointerId !== resizePointer) return;
+                    try { resizeHandle.releasePointerCapture(e.pointerId); } catch (_) {}
+                    resizePointer = null;
+                };
+                resizeHandle.addEventListener('pointerup', endResize);
+                resizeHandle.addEventListener('pointercancel', endResize);
             }
         }
     </script>

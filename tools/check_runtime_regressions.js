@@ -14,8 +14,8 @@ forbid(envelope,'new MutationObserver','envelope optional fields');
 
 const productivity=read('productivity-tools-runtime.js');
 for(const marker of ['a4-card-sheet-editor-v2-runtime.js','photo-print-advanced-runtime.js','document-vault-advanced-runtime.js'])need(productivity,marker,'core tools loader');
-for(const marker of ['questionsCenter','compressorCenter','questions-ar.html','questions-en.html','image-compressor.html','ensureQuestionFrame','ensureCompressorFrame'])forbid(productivity,marker,'removed sections');
-for(const removed of ['questions-ar.html','questions-en.html','questions-paper-runtime.js','questions-final-fixes-runtime.js','questions-gesture-runtime.js','question-type-runtime.js','image-compressor.html'])if(fs.existsSync(path.join(web,removed)))errors.push(`removed section file returned: ${removed}`);
+for(const marker of ['questionsCenter','compressorCenter','questions-ar.html','questions-en.html','image-compressor.html','ensureQuestionFrame','ensureCompressorFrame'])need(productivity,marker,'restored questions/compressor sections');
+for(const required of ['questions-ar.html','questions-en.html','questions-paper-runtime.js','questions-final-fixes-runtime.js','questions-gesture-runtime.js','question-type-runtime.js','image-compressor.html'])if(!fs.existsSync(path.join(web,required)))errors.push(`restored section file missing: ${required}`);
 
 const recovery=read('feature-recovery-runtime.js');
 for(const marker of ["addCardTool(types,'envelope'",'scheduleRecovery','top:76px','width:52px','height:52px'])need(recovery,marker,'cards/startup UI');
@@ -23,4 +23,4 @@ const device=read('device-name-runtime.js');
 for(const marker of ['dismissSplash','installSplashWatchdog','setTimeout(dismissSplash,1800)','login-throttle-fix-runtime.js','login-input-direction-runtime.js'])need(device,marker,'startup/login guards');
 for(const file of ['envelope-agreement-runtime.js','productivity-tools-runtime.js','feature-recovery-runtime.js','device-name-runtime.js']){try{new vm.Script(read(file),{filename:file})}catch(error){errors.push(`${file}: ${error.message}`)}}
 if(errors.length){process.stderr.write(errors.join('\n')+'\n');process.exit(1)}
-process.stdout.write('Runtime regression checks passed: questions and image-compressor sections are removed; remaining core tools and startup guards load.\n');
+process.stdout.write('Runtime regression checks passed: restored questions and image-compressor sections remain wired; core tools and startup guards load.\n');

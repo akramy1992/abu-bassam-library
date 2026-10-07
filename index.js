@@ -27,6 +27,8 @@ const APP_URL = 'file:///android_asset/library/index.html';
 const APP_VERSION = '6.0.0';
 const BUILD_NUMBER = '600';
 const PRIVACY_CAPTURE_KEY = 'abu-bassam-private-screen';
+const AUTH_CALLBACK_PREFIX = 'abu-bassam-library://auth/callback';
+const AUTH_CALLBACK_KEY = 'abu_bassam_auth_callback_v1';
 const STARTUP_WATCHDOG_MS = 9000;
 const BARCODE_TYPES = [
   'qr', 'ean13', 'ean8', 'code128', 'code39', 'code93', 'upc_a', 'upc_e',
@@ -118,11 +120,31 @@ function App() {
   const [webReady, setWebReady] = useState(false);
   const [webInstanceKey, setWebInstanceKey] = useState(0);
   const [startupAttempts, setStartupAttempts] = useState(0);
+  const lastAuthCallbackRef = useRef('');
 
   const inject = useCallback((functionName, payload) => {
     const json = JSON.stringify(payload).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
     webRef.current?.injectJavaScript(`if (typeof window.${functionName} === 'function') window.${functionName}(${json}); true;`);
   }, []);
+  const validAuthCallback = useCallback((rawUrl) => {
+    try {
+      const value = String(rawUrl || '').trim();
+      if (!value) return false;
+      const parsed = new URL(value);
+      const base = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+      if (base !== AUTH_CALLBACK_PREFIX) return false;
+      return !!(parsed.searchParams.get('code') || parsed.searchParams.get('error') || parsed.searchParams.get('error_description'));
+    } catch (_) { return false; }
+  }, []);
+  const captureAuthCallback = useCallback(async (rawUrl) => {
+    const value = String(rawUrl || '').trim();
+    if (!validAuthCallback(value) || lastAuthCallbackRef.current === value) return false;
+    await SecureStore.setItemAsync(AUTH_CALLBACK_KEY, value);
+    lastAuthCallbackRef.current = value;
+    inject('AbuBassamNativeAppState', { state: 'active', source: 'auth-callback', at: Date.now() });
+    return true;
+  }, [inject, validAuthCallback]);
+
   const replySecurity = useCallback((requestId, ok, value, error) => {
     inject('AbuBassamNativeSecurityResult', { requestId: String(requestId || ''), ok: !!ok, value: value ?? null, error: error ? String(error) : '' });
   }, [inject]);
@@ -154,6 +176,17 @@ function App() {
     });
     return () => subscription.remove();
   }, [inject, webReady]);
+
+  useEffect(() => {
+    let active = true;
+    Linking.getInitialURL().then((url) => {
+      if (active && url) captureAuthCallback(url).catch(() => {});
+    }).catch(() => {});
+    const subscription = Linking.addEventListener('url', (event) => {
+      if (active && event?.url) captureAuthCallback(event.url).catch(() => {});
+    });
+    return () => { active = false; subscription.remove(); };
+  }, [captureAuthCallback]);
 
   useEffect(() => {
     if (webReady) return undefined;
@@ -231,20 +264,31 @@ function App() {
     try {
       const imagePages = typeof pages === 'string' ? JSON.parse(pages) : pages;
       if (!Array.isArray(imagePages) || !imagePages.length) throw new Error('لا توجد صور للحفظ');
-      const finalMime = String(mime || 'image/jpeg');
-      if (!finalMime.startsWith('image/')) throw new Error('صيغة الصور غير مدعومة');
+      if (imagePages.length > 20) throw new Error('الحد الأقصى للحفظ في الدفعة الواحدة هو 20 صورة');
+      const defaultMime = String(mime || '').trim();
+      if (defaultMime && !defaultMime.startsWith('image/')) throw new Error('صيغة الصور غير مدعومة');
       const initialUri = FileSystem.StorageAccessFramework.getUriForDirectoryInRoot('Pictures');
       const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(initialUri);
       if (!permission.granted) return;
       let saved = 0;
       for (let index = 0; index < imagePages.length; index += 1) {
-        const parsed = splitDataUrl(imagePages[index]);
-        const displayName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}`;
-        const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, displayName, finalMime || parsed.mime);
+        const rawPage = String(imagePages[index] || '');
+        const encodedNameMatch = /;name=([^;]+);base64,/i.exec(rawPage);
+        const parsed = splitDataUrl(rawPage);
+        const itemMime = String(parsed.mime || defaultMime || 'image/jpeg');
+        if (!itemMime.startsWith('image/')) throw new Error('إحدى الصور تحمل صيغة غير مدعومة');
+        let requestedName = '';
+        if (encodedNameMatch) {
+          try { requestedName = safeName(decodeURIComponent(encodedNameMatch[1])); } catch (_) { requestedName = ''; }
+        }
+        const ext = itemMime === 'image/png' ? 'png' : itemMime === 'image/webp' ? 'webp' : itemMime === 'image/avif' ? 'avif' : 'jpg';
+        const fallbackName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}.${ext}`;
+        const finalName = requestedName || fallbackName;
+        const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, finalName, itemMime);
         await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, parsed.base64, { encoding: FileSystem.EncodingType.Base64 });
         saved += 1;
       }
-      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صفحة داخل مجلد الصور الذي اخترته.`);
+      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صورة بأسمائها وصيغها الأصلية داخل مجلد الصور الذي اخترته.`);
     } catch (error) { Alert.alert('تعذر حفظ الصفحات', String(error?.message || error)); }
   }, []);
 
@@ -301,7 +345,7 @@ function App() {
   const openExternal = useCallback(async ({ url }) => {
     try {
       const value = String(url || '').trim();
-      if (!/^(https?:|tel:|mailto:|tg:|whatsapp:)/i.test(value)) throw new Error('الرابط غير مسموح');
+      if (!/^(https:|tel:|mailto:|tg:|whatsapp:)/i.test(value)) throw new Error('الرابط غير مسموح');
       if (!(await Linking.canOpenURL(value))) throw new Error('لا يوجد تطبيق مناسب لفتح هذا الرابط');
       await Linking.openURL(value);
     } catch (error) { Alert.alert('تعذر فتح الرابط', String(error?.message || error)); }
@@ -310,7 +354,7 @@ function App() {
   const onShouldStartLoadWithRequest = useCallback((request) => {
     const url = String(request?.url || '').trim();
     if (!url || url === 'about:blank' || url.startsWith('file:///android_asset/library/')) return true;
-    if (/^(https?:|tel:|mailto:|tg:|whatsapp:)/i.test(url)) {
+    if (/^(https:|tel:|mailto:|tg:|whatsapp:)/i.test(url)) {
       openExternal({ url });
       return false;
     }

@@ -8,7 +8,7 @@ const LEGACY_TRUST_KEY='abuBassamSecurityTrustV1';
 const SECURE_TRUST_KEY='abu_bassam_offline_trust_v2';
 const SECRET_KEY='abu_bassam_device_secret_v1';
 const APP_VERSION='6.0.0';
-const OFFLINE_GRACE_MS=12*60*60*1000;
+const OFFLINE_GRACE_MS=7*24*60*60*1000;
 const CLOCK_SKEW_MS=5*60*1000;
 const LOCK_MINUTES_KEY='abuBassamSecurityLockMinutesV1';
 const pending=new Map();let seq=0,bridgeInstalled=false,patched=false,lastSealAt=0,offlineSession=false,offlineBackgroundAt=0;
@@ -32,7 +32,7 @@ async function biometricCheck(){if(!nativeAvailable())throw new Error('الفت�
 function applyOfflineDevice(trust){const sec=window.AbuBassamSecurity;if(!sec)return false;sec.__offlineTrust=trust;sec.__offlineRole=trust.role;sec.__offlinePermissions=trust.permissions||{};return true}
 function clearOfflineState(){const sec=window.AbuBassamSecurity;offlineSession=false;offlineBackgroundAt=0;if(sec){sec.__offlineTrust=null;sec.__offlineRole='';sec.__offlinePermissions={}}}
 function lockOffline(reason){const sec=window.AbuBassamSecurity;clearOfflineState();try{sec?.lockNow?.()}catch(_){}const gate=$('abuSecurityGate');gate?.classList.remove('hide');const err=$('abuLoginError');if(err)err.textContent=reason||'تم قفل الجلسة الآمنة.'}
-async function secureOfflineUnlock(){const err=$('abuLoginError');try{if(online())throw new Error('الإنترنت متاح؛ استخدم تسجيل الدخول أو البصمة العادية.');const trust=await loadTrust();if(!trust)throw new Error('انتهت أو لم تعد صالحة الثقة دون إنترنت. اتصل بالإنترنت وسجّل الدخول مرة واحدة.');await biometricCheck();applyOfflineDevice(trust);offlineSession=true;offlineBackgroundAt=0;const gate=$('abuSecurityGate');gate?.classList.add('hide');if(err)err.textContent='';const label=$('abuLoginDevice');if(label)label.textContent=`هذا الجهاز: ${trust.device_name||'Android'} • ${trust.role==='owner'?'رئيسي':'فرعي'} • Offline آمن`;window.AbuBassamOps?.add?.({type:'settings',title:'فتح آمن دون إنترنت',section:'الأمان',details:`بصمة + SecureStore + HMAC • صلاحية ${Math.round(OFFLINE_GRACE_MS/3600000)} ساعة`});return true}catch(e){if(err)err.textContent=String(e?.message||e);return false}}
+async function secureOfflineUnlock(){const err=$('abuLoginError');try{if(online())throw new Error('الإنترنت متاح؛ استخدم تسجيل الدخول أو البصمة العادية.');const trust=await loadTrust();if(!trust)throw new Error('انتهت أو لم تعد صالحة الثقة دون إنترنت. اتصل بالإنترنت وسجّل الدخول مرة واحدة.');await biometricCheck();applyOfflineDevice(trust);offlineSession=true;offlineBackgroundAt=0;const gate=$('abuSecurityGate');gate?.classList.add('hide');if(err)err.textContent='';const label=$('abuLoginDevice');if(label)label.textContent=`هذا الجهاز: ${trust.device_name||'Android'} • ${trust.role==='owner'?'رئيسي':'فرعي'} • Offline آمن`;window.AbuBassamOps?.add?.({type:'settings',title:'فتح آمن دون إنترنت',section:'الأمان',details:`بصمة + SecureStore + HMAC • صلاحية ${Math.round(OFFLINE_GRACE_MS/86400000)} أيام`});return true}catch(e){if(err)err.textContent=String(e?.message||e);return false}}
 function effectiveRole(){const sec=window.AbuBassamSecurity,d=sec?.__baseDevice?.();return d?.role||sec?.__offlineRole||''}
 function effectiveDevice(){const sec=window.AbuBassamSecurity;return sec?.__baseDevice?.()||sec?.__offlineTrust||null}
 function effectiveCan(name){const sec=window.AbuBassamSecurity,device=sec?.__baseDevice?.();if(device)return !!sec.__baseCan?.(name);const role=sec?.__offlineRole;if(role==='owner')return true;return !!sec?.__offlinePermissions?.[name]}
