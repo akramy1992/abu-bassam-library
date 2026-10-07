@@ -12,6 +12,8 @@ need(sync,"const networkAvailable = () => navigator.onLine !== false","network g
 need(sync,"دون إنترنت • الحفظ المحلي يعمل وستتم المزامنة عند عودة الاتصال","offline status");
 need(sync,"window.addEventListener('offline'","offline event");
 need(sync,"hasPendingSync: pendingSync","pending sync API");
+need(sync,"PENDING_SETTINGS_KEY = 'abuBassamPendingPrintSettingsV1'","print settings pending marker");
+need(sync,"hasPendingSettings: pendingSettings","pending settings API");
 new Function(sync);
 
 const security=read('web/security-hardening-runtime.js');
@@ -30,6 +32,10 @@ const media=read('web/mediapipe-pin-runtime.js');
 need(media,"const BASE='vendor/mediapipe/selfie_segmentation/';",'local MediaPipe base');
 forbid(media,'https://cdn.jsdelivr.net','runtime CDN dependency');
 new Function(media);
+
+const index=read('web/index.html');
+need(index,'queuePrintSettingsSync','offline print settings queue');
+need(index,'window.AbuBassamOps?.pushSettings?.()','print settings sync trigger');
 
 const bootstrap=read('web/security-bootstrap-guard-runtime.js');
 need(bootstrap,'__ABU_SECURITY_HARDENING_V2__','bootstrap waits for hardened security');
