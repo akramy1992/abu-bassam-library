@@ -301,7 +301,7 @@ function App() {
   const openExternal = useCallback(async ({ url }) => {
     try {
       const value = String(url || '').trim();
-      if (!/^(https?:|tel:|mailto:|tg:|whatsapp:)/i.test(value)) throw new Error('الرابط غير مسموح');
+      if (!/^(https:|tel:|mailto:|tg:|whatsapp:)/i.test(value)) throw new Error('الرابط غير مسموح');
       if (!(await Linking.canOpenURL(value))) throw new Error('لا يوجد تطبيق مناسب لفتح هذا الرابط');
       await Linking.openURL(value);
     } catch (error) { Alert.alert('تعذر فتح الرابط', String(error?.message || error)); }
@@ -310,7 +310,7 @@ function App() {
   const onShouldStartLoadWithRequest = useCallback((request) => {
     const url = String(request?.url || '').trim();
     if (!url || url === 'about:blank' || url.startsWith('file:///android_asset/library/')) return true;
-    if (/^(https?:|tel:|mailto:|tg:|whatsapp:)/i.test(url)) {
+    if (/^(https:|tel:|mailto:|tg:|whatsapp:)/i.test(url)) {
       openExternal({ url });
       return false;
     }
