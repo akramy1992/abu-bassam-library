@@ -8,6 +8,7 @@
   const BUCKET = 'abu-bassam-private';
   const OPS_KEY = 'abuBassamOpsV4';
   const AUTH_KEY = 'abuBassamSecureAuthV1';
+  const PENDING_SYNC_KEY = 'abuBassamPendingCloudSyncV1';
   const DEFAULT_EMAIL = 'akrama1992@gmail.com';
   const listeners = new Set();
   let session = null;
@@ -30,6 +31,9 @@
   const uuid = () => globalThis.crypto?.randomUUID?.() || `item-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const user = () => session?.user || null;
   const connected = () => !!user();
+  const networkAvailable = () => navigator.onLine !== false;
+  const pendingSync = () => localStorage.getItem(PENDING_SYNC_KEY) === '1';
+  const markPendingSync = (value = true) => { try { if (value) localStorage.setItem(PENDING_SYNC_KEY, '1'); else localStorage.removeItem(PENDING_SYNC_KEY); } catch (_) {} };
   const safe = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 
   function addStyle() {
@@ -270,7 +274,8 @@
     operation.deviceName ||= typeof window.AbuBassamDeviceName === 'function' ? window.AbuBassamDeviceName() : 'أكرم';
     saveOperations([operation, ...loadOperations().filter((item) => item.id !== operation.id)]);
     renderOperations();
-    if (push && connected()) upsert('operation', operation.id, operation).catch(() => {});
+    markPendingSync(true);
+    if (push && connected() && networkAvailable()) upsert('operation', operation.id, operation).catch(() => markPendingSync(true));
   }
 
   const labels = { print: 'طباعة', upload: 'تصوير / رفع', gallery: 'حفظ في المعرض', pdf: 'حفظ PDF', save: 'حفظ', open: 'فتح', rename: 'إعادة تسمية', delete: 'حذف', share: 'مشاركة', backup: 'نسخة احتياطية', restore: 'استعادة', sync: 'مزامنة', settings: 'إعدادات', crop: 'قص', failure: 'فشل معالجة', card: 'كارت' };
@@ -352,6 +357,11 @@
   }
 
   async function syncOperations(manual = true) {
+    if (!networkAvailable()) {
+      markPendingSync(true);
+      updateStatus('دون إنترنت • الحفظ المحلي يعمل وستتم المزامنة عند عودة الاتصال');
+      return false;
+    }
     if (!connected()) {
       updateStatus('اربط الحساب لتفعيل المزامنة الآمنة');
       if (manual) openLogin();
@@ -368,10 +378,12 @@
       const shared = settings.find((row) => row.client_id === 'shared');
       if (shared?.data) localStorage.setItem('abuBassamPrintSettingsV1', JSON.stringify(shared.data));
       renderOperations();
+      markPendingSync(false);
       updateStatus('تمت المزامنة الآمنة الآن ✓');
       return true;
     } catch (error) {
-      updateStatus('تعذرت المزامنة الآن');
+      markPendingSync(true);
+      updateStatus('تعذرت المزامنة الآن • التغييرات محفوظة محليًا');
       if (manual) alert(authMessage(error));
       return false;
     }
@@ -409,7 +421,7 @@
   }
 
   async function pushPrintSettings() {
-    if (!connected()) return;
+    if (!connected() || !networkAvailable()) { markPendingSync(true); return; }
     try {
       const raw = localStorage.getItem('abuBassamPrintSettingsV1');
       if (raw) await upsert('settings', 'shared', JSON.parse(raw));
@@ -429,6 +441,7 @@
       if (connected() && document.visibilityState !== 'hidden') syncOperations(false);
     }, 120000);
     window.addEventListener('online', () => { if (connected()) syncOperations(false); });
+    window.addEventListener('offline', () => { markPendingSync(true); updateStatus('دون إنترنت • الحفظ المحلي مستمر'); });
   }
 
   window.AbuBassamCloud = {
@@ -440,6 +453,8 @@
     openLogin,
     logout,
     onSession(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    isOffline: () => !networkAvailable(),
+    hasPendingSync: pendingSync,
     upsert,
     list,
     get,
