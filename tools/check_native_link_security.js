@@ -9,7 +9,7 @@ need(src,"if (!/^(https:|tel:|mailto:|tg:|whatsapp:)/i.test(value))",'openExtern
 need(src,"originWhitelist={['file://*','about:*']}",'WebView must stay local-only');
 need(src,'mixedContentMode="never"','mixed content must stay disabled');
 need(src,'STARTUP_WATCHDOG_MS','startup watchdog must remain in canonical native source');
-need(src,"message.type === 'webBootReady'",'native shell must receive explicit web boot readiness');
+need(src,'onLoadEnd={() => setWebReady(true)}','native shell must mark WebView ready after local page load');
 need(src,'recoverWebRenderer','native shell must recover a crashed WebView renderer');
 forbid(src,"originWhitelist={['*']}",'wildcard WebView origin whitelist');
 forbid(src,'mixedContentMode="always"','unsafe mixed content');
