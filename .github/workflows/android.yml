@@ -36,11 +36,13 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Cache pinned OCR assets
+      - name: Cache pinned offline ML assets
         uses: actions/cache@v6.1.0
         with:
-          path: .cache/ocr-tesseract-v5.1.1
-          key: abu-bassam-ocr-tesseract-5.1.1-ara-eng-v4
+          path: |
+            .cache/ocr-tesseract-v5.1.1
+            .cache/mediapipe-selfie-segmentation-v0.1.1675465747
+          key: abu-bassam-offline-ml-ocr5.1.1-mediapipe0.1.1675465747-v1
       - name: Require production signing only for production mode
         if: ${{ env.REQUEST_PRODUCTION == 'true' && env.HAS_ANDROID_RELEASE_KEY != 'true' }}
         run: |
