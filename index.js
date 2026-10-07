@@ -27,6 +27,8 @@ const APP_URL = 'file:///android_asset/library/index.html';
 const APP_VERSION = '6.0.0';
 const BUILD_NUMBER = '600';
 const PRIVACY_CAPTURE_KEY = 'abu-bassam-private-screen';
+const AUTH_CALLBACK_PREFIX = 'abu-bassam-library://auth/callback';
+const AUTH_CALLBACK_KEY = 'abu_bassam_auth_callback_v1';
 const STARTUP_WATCHDOG_MS = 9000;
 const BARCODE_TYPES = [
   'qr', 'ean13', 'ean8', 'code128', 'code39', 'code93', 'upc_a', 'upc_e',
@@ -118,11 +120,31 @@ function App() {
   const [webReady, setWebReady] = useState(false);
   const [webInstanceKey, setWebInstanceKey] = useState(0);
   const [startupAttempts, setStartupAttempts] = useState(0);
+  const lastAuthCallbackRef = useRef('');
 
   const inject = useCallback((functionName, payload) => {
     const json = JSON.stringify(payload).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
     webRef.current?.injectJavaScript(`if (typeof window.${functionName} === 'function') window.${functionName}(${json}); true;`);
   }, []);
+  const validAuthCallback = useCallback((rawUrl) => {
+    try {
+      const value = String(rawUrl || '').trim();
+      if (!value) return false;
+      const parsed = new URL(value);
+      const base = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+      if (base !== AUTH_CALLBACK_PREFIX) return false;
+      return !!(parsed.searchParams.get('code') || parsed.searchParams.get('error') || parsed.searchParams.get('error_description'));
+    } catch (_) { return false; }
+  }, []);
+  const captureAuthCallback = useCallback(async (rawUrl) => {
+    const value = String(rawUrl || '').trim();
+    if (!validAuthCallback(value) || lastAuthCallbackRef.current === value) return false;
+    await SecureStore.setItemAsync(AUTH_CALLBACK_KEY, value);
+    lastAuthCallbackRef.current = value;
+    inject('AbuBassamNativeAppState', { state: 'active', source: 'auth-callback', at: Date.now() });
+    return true;
+  }, [inject, validAuthCallback]);
+
   const replySecurity = useCallback((requestId, ok, value, error) => {
     inject('AbuBassamNativeSecurityResult', { requestId: String(requestId || ''), ok: !!ok, value: value ?? null, error: error ? String(error) : '' });
   }, [inject]);
@@ -154,6 +176,17 @@ function App() {
     });
     return () => subscription.remove();
   }, [inject, webReady]);
+
+  useEffect(() => {
+    let active = true;
+    Linking.getInitialURL().then((url) => {
+      if (active && url) captureAuthCallback(url).catch(() => {});
+    }).catch(() => {});
+    const subscription = Linking.addEventListener('url', (event) => {
+      if (active && event?.url) captureAuthCallback(event.url).catch(() => {});
+    });
+    return () => { active = false; subscription.remove(); };
+  }, [captureAuthCallback]);
 
   useEffect(() => {
     if (webReady) return undefined;
