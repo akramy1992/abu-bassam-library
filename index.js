@@ -264,20 +264,31 @@ function App() {
     try {
       const imagePages = typeof pages === 'string' ? JSON.parse(pages) : pages;
       if (!Array.isArray(imagePages) || !imagePages.length) throw new Error('لا توجد صور للحفظ');
-      const finalMime = String(mime || 'image/jpeg');
-      if (!finalMime.startsWith('image/')) throw new Error('صيغة الصور غير مدعومة');
+      if (imagePages.length > 20) throw new Error('الحد الأقصى للحفظ في الدفعة الواحدة هو 20 صورة');
+      const defaultMime = String(mime || '').trim();
+      if (defaultMime && !defaultMime.startsWith('image/')) throw new Error('صيغة الصور غير مدعومة');
       const initialUri = FileSystem.StorageAccessFramework.getUriForDirectoryInRoot('Pictures');
       const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(initialUri);
       if (!permission.granted) return;
       let saved = 0;
       for (let index = 0; index < imagePages.length; index += 1) {
-        const parsed = splitDataUrl(imagePages[index]);
-        const displayName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}`;
-        const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, displayName, finalMime || parsed.mime);
+        const rawPage = String(imagePages[index] || '');
+        const encodedNameMatch = /;name=([^;]+);base64,/i.exec(rawPage);
+        const parsed = splitDataUrl(rawPage);
+        const itemMime = String(parsed.mime || defaultMime || 'image/jpeg');
+        if (!itemMime.startsWith('image/')) throw new Error('إحدى الصور تحمل صيغة غير مدعومة');
+        let requestedName = '';
+        if (encodedNameMatch) {
+          try { requestedName = safeName(decodeURIComponent(encodedNameMatch[1])); } catch (_) { requestedName = ''; }
+        }
+        const ext = itemMime === 'image/png' ? 'png' : itemMime === 'image/webp' ? 'webp' : itemMime === 'image/avif' ? 'avif' : 'jpg';
+        const fallbackName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}.${ext}`;
+        const finalName = requestedName || fallbackName;
+        const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, finalName, itemMime);
         await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, parsed.base64, { encoding: FileSystem.EncodingType.Base64 });
         saved += 1;
       }
-      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صفحة داخل مجلد الصور الذي اخترته.`);
+      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صورة بأسمائها وصيغها الأصلية داخل مجلد الصور الذي اخترته.`);
     } catch (error) { Alert.alert('تعذر حفظ الصفحات', String(error?.message || error)); }
   }, []);
 
