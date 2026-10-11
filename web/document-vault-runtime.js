@@ -4,6 +4,9 @@
 const DB_NAME='AbuBassamDocumentVaultV4';
 const STORE='items';
 const MAX_ITEMS=1000;
+const TRASH_RETENTION_MS=30*24*60*60*1000;
+function trashExpired(item){const started=Date.parse(item.deletedAt||item.updatedAt||'');return Number.isFinite(started)&&Date.now()-started>=TRASH_RETENTION_MS}
+function trashDaysLeft(item){const started=Date.parse(item.deletedAt||item.updatedAt||'');return Number.isFinite(started)?Math.max(0,Math.ceil((started+TRASH_RETENTION_MS-Date.now())/86400000)):30}
 const LAST_SYNC_KEY='abuBassamVaultLastSyncV4';
 const AUTO_SYNC_KEY='abuBassamVaultAutoSyncV4';
 const SORT_KEY='abuBassamVaultSortV4';
@@ -57,7 +60,7 @@ function mainHtml(){return `<div class="v-shell">
     <div class="v-actions"><button onclick="DocumentVault.openOcr()">📷 تحويل صورة إلى نص</button><button onclick="DocumentVault.backup('save')">⬇ نسخة على الجهاز</button><button onclick="DocumentVault.backup('share')">✉ Google / Gmail</button><button onclick="DocumentVault.syncNow()">↻ مزامنة الآن</button></div>
     <div class="v-syncline"><span id="vSyncStatus">المزامنة: جاهزة</span><label class="v-auto"><input id="vAutoSync" type="checkbox" onchange="DocumentVault.setAutoSync(this.checked)"> تلقائي يومياً وعند توفر الإنترنت</label></div>
   </div>
-  <div class="v-tabs"><button class="v-tab active" data-filter="all" onclick="DocumentVault.setFilter('all')">الكل</button><button class="v-tab" data-filter="image" onclick="DocumentVault.setFilter('image')">الصور</button><button class="v-tab" data-filter="pdf" onclick="DocumentVault.setFilter('pdf')">PDF</button><button class="v-tab" data-filter="text" onclick="DocumentVault.setFilter('text')">النصوص</button><button class="v-tab" data-filter="file" onclick="DocumentVault.setFilter('file')">الملفات</button><button class="v-tab" data-filter="folder:المستمسكات" onclick="DocumentVault.setFilter('folder:المستمسكات')">المستمسكات</button><button class="v-tab" data-filter="folder:المعاملات" onclick="DocumentVault.setFilter('folder:المعاملات')">المعاملات</button><button class="v-tab" data-filter="folder:الباجات" onclick="DocumentVault.setFilter('folder:الباجات')">الباجات</button><button class="v-tab" data-filter="favorite" onclick="DocumentVault.setFilter('favorite')">★ المفضلة</button><button class="v-tab" data-filter="recent" onclick="DocumentVault.setFilter('recent')">🕘 الأخيرة</button></div>
+  <div class="v-tabs"><button class="v-tab active" data-filter="all" onclick="DocumentVault.setFilter('all')">الكل</button><button class="v-tab" data-filter="image" onclick="DocumentVault.setFilter('image')">الصور</button><button class="v-tab" data-filter="pdf" onclick="DocumentVault.setFilter('pdf')">PDF</button><button class="v-tab" data-filter="text" onclick="DocumentVault.setFilter('text')">النصوص</button><button class="v-tab" data-filter="file" onclick="DocumentVault.setFilter('file')">الملفات</button><button class="v-tab" data-filter="folder:المستمسكات" onclick="DocumentVault.setFilter('folder:المستمسكات')">المستمسكات</button><button class="v-tab" data-filter="folder:المعاملات" onclick="DocumentVault.setFilter('folder:المعاملات')">المعاملات</button><button class="v-tab" data-filter="folder:الباجات" onclick="DocumentVault.setFilter('folder:الباجات')">الباجات</button><button class="v-tab" data-filter="favorite" onclick="DocumentVault.setFilter('favorite')">★ المفضلة</button><button class="v-tab" data-filter="recent" onclick="DocumentVault.setFilter('recent')">🕘 الأخيرة</button><button class="v-tab" data-filter="trash" onclick="DocumentVault.setFilter('trash')">🗑 سلة المحذوفات (30 يومًا)</button></div>
   <div class="v-upload-grid"><button class="v-upload" onclick="DocumentVault.pickImages()"><span>🖼️</span>رفع صور أو كتب صورية<br>مع القص والتدوير والتحسين</button><button class="v-upload" onclick="DocumentVault.pickFiles()"><span>📚</span>رفع Word / Excel / PDF<br>وجميع أنواع الملفات</button></div>
   <div class="v-tabs"><button class="v-tab" onclick="DocumentVault.pickCollection('المستمسكات')">＋ رفع مستمسك</button><button class="v-tab" onclick="DocumentVault.pickCollection('المعاملات')">＋ رفع معاملة</button><button class="v-tab" onclick="DocumentVault.pickCollection('الباجات')">＋ رفع باج</button></div>
   <div class="v-counter"><span id="vCount">0 من 1000</span><label class="v-sort">ترتيب حسب <select id="vSort" onchange="DocumentVault.setSort(this.value)"><option value="date-desc">التاريخ — الأحدث</option><option value="date-asc">التاريخ — الأقدم</option><option value="alpha-asc">الأبجدية — أ إلى ي</option><option value="alpha-desc">الأبجدية — ي إلى أ</option><option value="size-desc">الحجم — الأكبر</option><option value="size-asc">الحجم — الأصغر</option><option value="type-asc">النوع</option></select></label><div class="v-view-switch"><button id="vGridBtn" onclick="DocumentVault.setView('grid')">▦</button><button id="vListBtn" onclick="DocumentVault.setView('list')">☷</button></div><button class="v-tab" style="padding:5px 9px" onclick="DocumentVault.createFolder()">＋ مجلد</button><button class="v-tab" style="padding:5px 9px" onclick="DocumentVault.pickBackup()">استعادة نسخة</button></div>
@@ -90,7 +93,7 @@ async function build(){
   window.addEventListener('online',()=>{setSyncStatus('عاد الإنترنت • فحص جدول المزامنة');if(automaticDue())syncNow(false)});
   window.addEventListener('offline',()=>setSyncStatus('لا يوجد إنترنت • الحفظ المحلي يعمل'));
   setTimeout(()=>{if(automaticDue())syncNow(false)},5000);
-  setInterval(()=>{if(automaticDue())syncNow(false)},900000)
+  setInterval(()=>{refresh().catch(()=>{});if(automaticDue())syncNow(false)},900000)
 }
 
 function setBusy(on,text='جاري العمل...'){state.busy=!!on;if($('vBusy'))$('vBusy').classList.toggle('show',!!on);if($('vBusyText'))$('vBusyText').textContent=text}
@@ -102,18 +105,30 @@ function hasPending(){return state.items.some(item=>item.syncState==='pending')}
 function logOperation(type,title,details='',fileName=''){if(window.AbuBassamOps&&AbuBassamOps.add)AbuBassamOps.add({type,title,details,fileName,section:'الحفظ والمستندات'})}
 
 async function refresh(){
-  state.items=(await dbAll()).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const all=await dbAll();
+  // Retain a deletion marker after expiring the bytes: stale devices must not resurrect files.
+  for(const item of all){
+    if(item.deleted&&item.blob&&trashExpired(item)){
+      await dbPut({...item,blob:null,size:0,permanent:true,syncState:'pending'});
+      item.blob=null;item.size=0;item.permanent=true;item.syncState='pending';
+    }
+  }
+  state.items=all.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   render()
 }
 function cleanupUrls(){state.urls.forEach(url=>{try{URL.revokeObjectURL(url)}catch(e){}});state.urls=[]}
 function objectUrl(blob){let url=URL.createObjectURL(blob);state.urls.push(url);return url}
 function fileIcon(item){let e=ext(item.name);if(e==='pdf')return'📕';if(['doc','docx','odt','rtf'].includes(e))return'🟦';if(['xls','xlsx','ods','csv'].includes(e))return'🟩';if(['ppt','pptx'].includes(e))return'🟧';if(['zip','rar','7z'].includes(e))return'🗜️';if(['epub','mobi'].includes(e))return'📚';return'📄'}
 function typeOf(item){let e=ext(item.name);if(isImage(item))return'image';if(e==='pdf')return'pdf';if(['txt','rtf','csv','json','xml','html'].includes(e))return'text';return'file'}
-function visibleItems(){let q=state.query.trim().toLocaleLowerCase('ar'),active=state.items.filter(item=>!item.deleted),match=item=>state.filter==='all'||state.filter==='favorite'&&item.favorite||state.filter==='recent'&&item.lastOpenedAt||state.filter.startsWith('folder:')&&item.folder===state.filter.slice(7)||typeOf(item)===state.filter,items=active.filter(item=>match(item)&&(!q||[item.name,item.mime,ext(item.name),item.folder].join(' ').toLocaleLowerCase('ar').includes(q))),sort=state.sort||'date-desc';if(state.filter==='recent')sort='opened-desc';items.sort((a,b)=>{if(sort==='alpha-asc'||sort==='alpha-desc'){let n=String(a.name||'').localeCompare(String(b.name||''),'ar',{numeric:true,sensitivity:'base'});return sort==='alpha-desc'?-n:n}if(sort==='size-asc'||sort==='size-desc'){let n=(Number(a.size)||0)-(Number(b.size)||0);return sort==='size-desc'?-n:n}if(sort==='type-asc')return typeOf(a).localeCompare(typeOf(b),'ar')||String(a.name).localeCompare(String(b.name),'ar');if(sort==='opened-desc')return Date.parse(b.lastOpenedAt||0)-Date.parse(a.lastOpenedAt||0);let n=Date.parse(a.createdAt||a.updatedAt||0)-Date.parse(b.createdAt||b.updatedAt||0);return sort==='date-asc'?n:-n});return items}
+function visibleItems(){let q=state.query.trim().toLocaleLowerCase('ar'),active=state.items.filter(item=>state.filter==='trash'?item.deleted&&!!item.blob&&!trashExpired(item):!item.deleted),match=item=>state.filter==='trash'||state.filter==='all'||state.filter==='favorite'&&item.favorite||state.filter==='recent'&&item.lastOpenedAt||state.filter.startsWith('folder:')&&item.folder===state.filter.slice(7)||typeOf(item)===state.filter,items=active.filter(item=>match(item)&&(!q||[item.name,item.mime,ext(item.name),item.folder].join(' ').toLocaleLowerCase('ar').includes(q))),sort=state.sort||'date-desc';if(state.filter==='recent')sort='opened-desc';items.sort((a,b)=>{if(sort==='alpha-asc'||sort==='alpha-desc'){let n=String(a.name||'').localeCompare(String(b.name||''),'ar',{numeric:true,sensitivity:'base'});return sort==='alpha-desc'?-n:n}if(sort==='size-asc'||sort==='size-desc'){let n=(Number(a.size)||0)-(Number(b.size)||0);return sort==='size-desc'?-n:n}if(sort==='type-asc')return typeOf(a).localeCompare(typeOf(b),'ar')||String(a.name).localeCompare(String(b.name),'ar');if(sort==='opened-desc')return Date.parse(b.lastOpenedAt||0)-Date.parse(a.lastOpenedAt||0);let n=Date.parse(a.createdAt||a.updatedAt||0)-Date.parse(b.createdAt||b.updatedAt||0);return sort==='date-asc'?n:-n});return items}
 function render(){
   let grid=$('vGrid');if(!grid)return;cleanupUrls();let active=state.items.filter(item=>!item.deleted),items=visibleItems();
   $('vCount').textContent=`${active.length} من ${MAX_ITEMS} • الظاهر ${items.length}`;
   document.querySelectorAll('.v-tab[data-filter]').forEach(button=>button.classList.toggle('active',button.dataset.filter===state.filter));grid.classList.toggle('list',state.view==='list');$('vGridBtn')?.classList.toggle('active',state.view==='grid');$('vListBtn')?.classList.toggle('active',state.view==='list');
+  if(state.filter==='trash'){
+    grid.innerHTML=items.length?items.map(item=>`<article class="v-item"><div class="v-file-icon">${fileIcon(item)}</div><div class="v-name">${esc(item.name)}</div><div class="v-meta">المجلد: ${esc(item.folder||'الرئيسي')} • متبقي ${trashDaysLeft(item)} يوم • ${formatBytes(item.size)}</div><div class="v-item-actions"><button onclick="DocumentVault.restoreDeleted('${item.id}')">♻️ استعادة</button><button class="danger" onclick="DocumentVault.permanentDelete('${item.id}')">حذف نهائي</button></div></article>`).join(''):'<div class="v-empty">سلة المحذوفات فارغة.</div>';
+    return;
+  }
   grid.innerHTML=items.length?items.map(item=>{let thumb=isImage(item)?`<img src="${objectUrl(item.blob)}" alt="">`:`<div class="v-file-icon">${fileIcon(item)}</div>`;return `<article class="v-item"><button class="v-thumb" onclick="DocumentVault.openItem('${item.id}')">${thumb}${item.syncState==='pending'?'<span class="v-pending">بانتظار المزامنة</span>':''}${item.favorite?'<span class="v-favorite">★</span>':''}</button><div class="v-name" title="${esc(item.name)}">${esc(item.name)}</div>${item.folder?`<div class="v-folder">📁 ${esc(item.folder)}</div>`:''}<div class="v-meta">${typeOf(item)==='image'?'صورة':typeOf(item)==='pdf'?'PDF':typeOf(item)==='text'?'نص':'ملف'} • ${formatBytes(item.size)} • ${formatTime(item.updatedAt)}</div><div class="v-item-actions"><button onclick="DocumentVault.${isImage(item)?'editItem':'openItem'}('${item.id}')">${isImage(item)?'تحرير':'فتح'}</button><button onclick="DocumentVault.printItem('${item.id}')">طباعة</button><button onclick="DocumentVault.saveItem('${item.id}')">حفظ</button><button class="${item.favorite?'favorite-on':''}" onclick="DocumentVault.toggleFavorite('${item.id}')">${item.favorite?'★':'☆'}</button><button onclick="DocumentVault.moveItem('${item.id}')">نقل</button><button onclick="DocumentVault.renameItem('${item.id}')">تسمية</button><button onclick="DocumentVault.shareItem('${item.id}')">مشاركة</button><button class="danger" onclick="DocumentVault.deleteItem('${item.id}')">حذف</button></div></article>`}).join(''):'<div class="v-empty">لا توجد نتائج. ارفع صوراً أو كتباً أو ملفات من الأيقونات في الأعلى.</div>'
 }
 function setFilter(filter){state.filter=filter;render()}
@@ -170,8 +185,26 @@ async function renameItem(id){
   let item=findItem(id);if(!item)return;let old=item.name,name=prompt('اكتب الاسم الجديد مع الامتداد:',item.name);if(!name||!name.trim())return;item.name=niceName(name);item.updatedAt=new Date().toISOString();item.syncState='pending';await dbPut(item);await refresh();logOperation('rename','إعادة تسمية ملف',old+' ← '+item.name);if(autoSync()&&navigator.onLine)setTimeout(()=>syncNow(false),500)
 }
 async function deleteItem(id){
-  let item=findItem(id);if(!item||!confirm('حذف «'+item.name+'» من الأرشيف ومن الأجهزة المتزامنة؟'))return;
-  await dbPut({id:item.id,name:item.name,category:item.category,mime:item.mime,size:0,createdAt:item.createdAt,updatedAt:new Date().toISOString(),blob:null,syncState:'pending',deleted:true});await refresh();logOperation('delete','حذف: '+item.name);if(autoSync()&&navigator.onLine)setTimeout(()=>syncNow(false),500)
+  const item=findItem(id);if(!item||item.deleted||!confirm('نقل «'+item.name+'» إلى سلة المحذوفات لمدة 30 يومًا؟'))return;
+  const now=new Date().toISOString();
+  await dbPut({...item,updatedAt:now,deletedAt:now,deleted:true,permanent:false,syncState:'pending'});
+  await refresh();logOperation('delete','نقل إلى سلة المحذوفات: '+item.name);
+  if(autoSync()&&navigator.onLine)setTimeout(()=>syncNow(false),500);
+}
+async function restoreDeleted(id){
+  const item=findItem(id);
+  if(!item?.deleted||!item.blob||trashExpired(item))return alert('انتهت مدة الاستعادة أو الملف غير متاح.');
+  await dbPut({...item,deleted:false,deletedAt:null,permanent:false,updatedAt:new Date().toISOString(),syncState:'pending'});
+  await refresh();logOperation('restore','استعادة ملف من السلة',item.name);
+  if(autoSync()&&navigator.onLine)setTimeout(()=>syncNow(false),500);
+}
+async function permanentDelete(id){
+  const item=findItem(id);if(!item?.deleted)return;
+  if(!confirm('حذف «'+item.name+'» نهائيًا؟ لن تتمكن من استعادته من السلة.'))return;
+  if(!confirm('تأكيد أخير: سيتم حذف محتوى الملف محليًا، ومن التخزين السحابي عند المزامنة.'))return;
+  await dbPut({...item,blob:null,size:0,deleted:true,permanent:true,syncState:'pending'});
+  await refresh();logOperation('delete','طلب حذف نهائي من السلة',item.name);
+  if(navigator.onLine)setTimeout(()=>syncNow(false),500);
 }
 
 async function editItem(id){
@@ -290,10 +323,13 @@ async function syncNow(manual=true){
           await dbPut(remoteItem(Object.assign({},remote,{id:uuid(),name:String(remote.name||item.name).replace(/(\.[^.]+)?$/,' (نسخة جهاز آخر)$1'),updatedAt:new Date().toISOString()}),remoteBlob))
         }
       }
-      let data={id:item.id,name:item.name,category:item.category,mime:item.mime,size:item.size,createdAt:item.createdAt,updatedAt:item.updatedAt,folder:item.folder||'',favorite:!!item.favorite,lastOpenedAt:item.lastOpenedAt||'',deleted:!!item.deleted,storagePath:remote&&remote.storagePath||''};
+      let data={id:item.id,name:item.name,category:item.category,mime:item.mime,size:item.size,createdAt:item.createdAt,updatedAt:item.updatedAt,folder:item.folder||'',favorite:!!item.favorite,lastOpenedAt:item.lastOpenedAt||'',deleted:!!item.deleted,deletedAt:item.deletedAt||null,permanent:!!item.permanent,storagePath:remote&&remote.storagePath||''};
       if(item.deleted){
-        if(data.storagePath)await service.removeVault(data.storagePath).catch(()=>{});
-        data.storagePath=''
+        if(item.permanent){
+          if(data.storagePath)await service.removeVault(data.storagePath);
+          data.storagePath='';data.purgedAt=new Date().toISOString();
+        }
+        // Soft deletion retains cloud bytes until a verified restore or the 30-day purge.
       }else if(item.blob){
         data.storagePath=await service.uploadVault(item.id,item.blob,item.mime)
       }
@@ -308,7 +344,14 @@ async function syncNow(manual=true){
       if(!data||!data.id)continue;
       let here=local.get(data.id),remoteTime=Date.parse(data.updatedAt||0),localTime=Date.parse(here&&here.updatedAt||0);
       if(here&&localTime>remoteTime)continue;
-      if(data.deleted){await dbDelete(data.id);continue}
+      if(data.deleted){
+        let blob=here?.blob||null;
+        if(!blob&&data.storagePath&&!trashExpired(data)){
+          try{blob=await service.downloadVault(data.storagePath)}catch(_){}
+        }
+        await dbPut({...here,id:data.id,name:data.name||here?.name||'ملف محذوف',category:data.category||here?.category||'file',mime:data.mime||here?.mime||'application/octet-stream',folder:data.folder||here?.folder||'',size:blob?.size||0,blob,deleted:true,deletedAt:data.deletedAt||data.updatedAt,permanent:!!data.permanent,updatedAt:data.updatedAt,syncState:'synced'});
+        continue
+      }
       if(here&&localTime===remoteTime&&here.syncState==='synced')continue;
       if(!data.storagePath)continue;
       let blob=await service.downloadVault(data.storagePath);
@@ -330,6 +373,6 @@ async function stats(){let items=state.items.length?state.items:await dbAll(),ac
 
 const previousNativeResult=window.AbuBassamNativeCameraResult;
 window.AbuBassamNativeCameraResult=function(result){if(result&&result.mode==='ocr')return onOcrPhoto(result.dataUrl);if(typeof previousNativeResult==='function')return previousNativeResult(result)};
-window.DocumentVault={setFilter,setSort,setView,createFolder,moveItem,toggleFavorite,pickImages,pickFiles,pickCollection,pickBackup,openItem,editItem,renameItem,deleteItem,saveItem,shareItem,printItem,saveGalleryItem,savePdfItem,saveActive,shareActive,saveGalleryActive,savePdfActive,printActive,closeModal,editorChanged,resetEditor,clarify,saveEditor,saveEditorGallery,saveEditorPdf,printEditor,openOcr,ocrCamera,ocrGallery,ocrFilePicker,clearOcr,copyOcr,selectOcr,shareOcr,saveOcrText,saveOcrPdf,saveOcrWithImage,reOcr,printOcr,useOcrLogin,backup,syncNow,setAutoSync,onShow,stats};
+window.DocumentVault={setFilter,setSort,setView,createFolder,moveItem,toggleFavorite,pickImages,pickFiles,pickCollection,pickBackup,openItem,editItem,renameItem,deleteItem,restoreDeleted,permanentDelete,saveItem,shareItem,printItem,saveGalleryItem,savePdfItem,saveActive,shareActive,saveGalleryActive,savePdfActive,printActive,closeModal,editorChanged,resetEditor,clarify,saveEditor,saveEditorGallery,saveEditorPdf,printEditor,openOcr,ocrCamera,ocrGallery,ocrFilePicker,clearOcr,copyOcr,selectOcr,shareOcr,saveOcrText,saveOcrPdf,saveOcrWithImage,reOcr,printOcr,useOcrLogin,backup,syncNow,setAutoSync,onShow,stats};
 window.addEventListener('DOMContentLoaded',build);
 })();
