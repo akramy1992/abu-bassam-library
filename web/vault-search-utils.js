@@ -67,5 +67,44 @@
     });
   }
 
-  return Object.freeze({ normalize, phone, parse, matches });
+  // Metadata-only filtering over records already authorized by the vault.
+  // Never search file contents, tokens or arbitrary object fields.
+  function filterMetadata(item, options = {}) {
+    if (!item || item.deleted) return false;
+    const name = String(item.name || '');
+    const mime = String(item.mime || '').toLowerCase();
+    const optionsSafe = options && typeof options === 'object' ? options : {};
+    const folder = normalize(optionsSafe.folder);
+    const ownFolder = normalize(item.folder);
+    if (folder && ownFolder !== folder && !ownFolder.startsWith(folder + '/')) return false;
+    const docNo = normalize(optionsSafe.documentNumber);
+    if (docNo && ![item.documentNumber, item.referenceNumber].some(v => normalize(v) === docNo)) return false;
+    const kind = String(optionsSafe.kind || 'all');
+    if (kind !== 'all') {
+      const extension = name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || '';
+      const actual = mime.startsWith('image/') || item.category === 'image' ? 'image'
+        : mime === 'application/pdf' || extension === 'pdf' ? 'pdf'
+        : mime.startsWith('text/') || ['txt','rtf','csv','json','xml','html'].includes(extension) ? 'text'
+        : 'file';
+      if (actual !== kind) return false;
+    }
+    const size = Number(item.size);
+    const min = optionsSafe.minKb === '' || optionsSafe.minKb == null ? null : Number(optionsSafe.minKb);
+    const max = optionsSafe.maxKb === '' || optionsSafe.maxKb == null ? null : Number(optionsSafe.maxKb);
+    if ((min !== null || max !== null) && (!Number.isFinite(size) || size < 0)) return false;
+    if (min !== null && (!Number.isFinite(min) || min < 0 || size < min * 1024)) return false;
+    if (max !== null && (!Number.isFinite(max) || max < 0 || size > max * 1024)) return false;
+    for (const [name, value] of [['createdAt', optionsSafe.createdFrom], ['updatedAt', optionsSafe.updatedFrom]]) {
+      if (!value) continue;
+      // Date-picker values are YYYY-MM-DD; comparing the UTC date component
+      // avoids invalid dates, locale ambiguity and timezone-day shifting.
+      const date = String(value);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date))) return false;
+      const actual = Date.parse(item[name] || '');
+      if (!Number.isFinite(actual) || actual < Date.parse(date + 'T00:00:00Z')) return false;
+    }
+    return true;
+  }
+
+  return Object.freeze({ normalize, phone, parse, matches, filterMetadata });
 });
