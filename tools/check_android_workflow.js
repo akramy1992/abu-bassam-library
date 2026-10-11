@@ -7,5 +7,9 @@ for(const marker of ['permissions:\n  contents: read','release_mode:','default: 
 for(const bad of ['contents: write','git push','patch-startup-stability','patch-customer-camera','Abu_Bassam_Library_4.3.2.apk'])if(workflow.includes(bad))errors.push(`android.yml forbidden ${bad}`);
 for(const marker of ['appConfig','appVersion','apkFileName','npm',"['run', 'check:web']","['run', 'android:prebuild']","['assembleRelease', '--no-daemon']",'assets/index.android.bundle','SIGNING_CERTIFICATE.txt','SHA256.txt'])if(!local.includes(marker))errors.push(`local build missing ${marker}`);
 if(/Abu_Bassam_Library_\d+\.\d+\.\d+\.apk/.test(local))errors.push('local build contains frozen APK version');
+// Preserve the owner's decision: GitHub Actions must never build an APK.
+if(/^\s+(?:push|pull_request):/m.test(workflow))errors.push('Android build must not run on push or pull requests');
+if(!/\n  build:\n(?:[^\n]*\n){0,4}    if: \$\{\{ false \}\}/.test(workflow))
+  errors.push('Android build job must remain disabled even on manual workflow_dispatch');
 if(errors.length){console.error(errors.join('\n'));process.exit(1)}
 console.log('Android build paths are read-only, clean-source, dynamically versioned, and distinguish test from production signing.');
