@@ -2,17 +2,39 @@
 'use strict';
 if(window.__ABU_DOCUMENT_VAULT_OFFLINE_OCR_V1__)return;
 window.__ABU_DOCUMENT_VAULT_OFFLINE_OCR_V1__=true;
-let workerPromise=null,lastImage='',idleTimer=0,imageTimer=0,busy=false;
+let workerPromise=null,localScriptPromise=null,lastImage='',idleTimer=0,imageTimer=0,busy=false;
 const $=id=>document.getElementById(id);
 function setProgress(t){const e=$('vOcrProgress');if(e)e.textContent=t||''}
 function clearTimers(){clearTimeout(idleTimer);clearTimeout(imageTimer)}
 async function terminate(){clearTimeout(idleTimer);if(busy){idleTimer=setTimeout(terminate,30000);return false}const p=workerPromise;workerPromise=null;if(p){try{const w=await p;await w?.terminate?.()}catch(_){}}return true}
 function scheduleIdle(ms=120000){clearTimeout(idleTimer);idleTimer=setTimeout(terminate,ms);clearTimeout(imageTimer);imageTimer=setTimeout(()=>{lastImage=''},10*60*1000)}
-function loadLocalScript(){return new Promise((resolve,reject)=>{if(window.Tesseract)return resolve();const old=document.getElementById('abuLocalTesseract');if(old){old.addEventListener('load',resolve,{once:true});old.addEventListener('error',()=>reject(new Error('تعذر تحميل OCR المحلي')),{once:true});return}const s=document.createElement('script');s.id='abuLocalTesseract';s.src='vendor/tesseract/tesseract.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('ملفات OCR المحلية غير موجودة في هذه النسخة'));document.head.appendChild(s)})}
+function loadLocalScript(){
+  if(window.Tesseract?.createWorker)return Promise.resolve();
+  if(localScriptPromise)return localScriptPromise;
+  localScriptPromise=new Promise((resolve,reject)=>{
+    document.getElementById('abuLocalTesseract')?.remove();
+    const script=document.createElement('script');
+    script.id='abuLocalTesseract';script.src='vendor/tesseract/tesseract.min.js';
+    let settled=false;
+    const fail=reason=>{
+      if(settled)return;
+      settled=true;clearTimeout(watchdog);script.remove();reject(new Error(reason))
+    };
+    const watchdog=setTimeout(()=>fail('انتهت مهلة تحميل محرّك OCR المحلي'),15000);
+    script.onload=()=>{
+      if(!window.Tesseract?.createWorker)return fail('تعذر تهيئة محرّك OCR المحلي');
+      if(settled)return;
+      settled=true;clearTimeout(watchdog);resolve()
+    };
+    script.onerror=()=>fail('ملفات OCR المحلية غير موجودة في هذه النسخة');
+    try{document.head.appendChild(script)}catch(error){fail(error?.message||String(error))}
+  }).finally(()=>{localScriptPromise=null});
+  return localScriptPromise
+}
 async function worker(){clearTimeout(idleTimer);if(workerPromise)return workerPromise;workerPromise=(async()=>{await loadLocalScript();if(!window.Tesseract?.createWorker)throw new Error('محرك OCR المحلي غير جاهز');return Tesseract.createWorker('ara+eng',1,{workerPath:'vendor/tesseract/worker.min.js',langPath:'vendor/tesseract/lang',corePath:'vendor/tesseract/core',logger:m=>{if(m?.status==='recognizing text')setProgress('جاري قراءة النص محليًا... '+Math.round((m.progress||0)*100)+'%');else if(m?.status)setProgress('OCR محلي: '+m.status)}})})();try{return await workerPromise}catch(e){workerPromise=null;throw e}}
-async function recognize(dataUrl){if(!dataUrl)return;lastImage=dataUrl;const img=$('vOcrImage'),text=$('vOcrText');if(img){img.src=dataUrl;img.style.display='block'}if(text)text.value='';setProgress('جاري تشغيل OCR العربي والإنجليزي من ملفات التطبيق المحلية...');busy=true;try{const w=await worker(),result=await w.recognize(dataUrl),out=String(result?.data?.text||'').replace(/\r/g,'').trim();if(text)text.value=out;setProgress(out?'تم استخراج النص محليًا بدون إنترنت ✓':'لم يظهر نص واضح؛ جرّب صورة أوضح أو استخدم القص والتوضيح أولًا.');try{window.AbuBassamOps?.add?.({type:'ocr',title:'OCR محلي',details:out?out.length+' حرف':'بدون نتيجة',section:'الحفظ والمستندات'})}catch(e){}}catch(e){setProgress('تعذر OCR المحلي: '+(e.message||e)+'. أعد بناء APK لتضمين ملفات OCR المحلية.')}finally{busy=false;scheduleIdle()}}
-function fileToData(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(r.error||new Error('تعذر قراءة الصورة'));r.readAsDataURL(file)})}
-async function inputChanged(ev){const file=ev?.target?.files?.[0];if(!file)return;try{await recognize(await fileToData(file))}finally{if(ev?.target)ev.target.value=''}}
+async function recognize(dataUrl){if(!dataUrl)return false;if(busy){setProgress('جاري قراءة صورة أخرى؛ أعد المحاولة بعد اكتمال القراءة.');return false}lastImage=dataUrl;const img=$('vOcrImage'),text=$('vOcrText');if(img){img.src=dataUrl;img.style.display='block'}if(text)text.value='';setProgress('جاري تشغيل OCR العربي والإنجليزي من ملفات التطبيق المحلية...');busy=true;try{const w=await worker(),result=await w.recognize(dataUrl),out=String(result?.data?.text||'').replace(/\r/g,'').trim();if(text)text.value=out;setProgress(out?'تم استخراج النص محليًا بدون إنترنت ✓':'لم يظهر نص واضح؛ جرّب صورة أوضح أو استخدم القص والتوضيح أولًا.');try{window.AbuBassamOps?.add?.({type:'ocr',title:'OCR محلي',details:out?out.length+' حرف':'بدون نتيجة',section:'الحفظ والمستندات'})}catch(e){}}catch(e){setProgress('تعذر OCR المحلي: '+(e.message||e)+'. أعد بناء APK لتضمين ملفات OCR المحلية.')}finally{busy=false;scheduleIdle()}}
+function fileToData(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(r.error||new Error('تعذر قراءة الصورة'));r.onabort=()=>reject(new Error('تم إلغاء قراءة الصورة'));try{r.readAsDataURL(file)}catch(error){reject(error)}})}
+async function inputChanged(ev){const file=ev?.target?.files?.[0];if(!file)return;try{await recognize(await fileToData(file))}catch(error){setProgress('تعذرت قراءة الصورة: '+String(error?.message||error))}finally{if(ev?.target)ev.target.value=''}}
 function bind(){const input=$('vOcrInput');if(input&&input.dataset.abuOfflineOcr!=='1'){input.dataset.abuOfflineOcr='1';input.onchange=inputChanged}if(window.DocumentVault&&!DocumentVault.__abuOfflineOcrPatched){DocumentVault.__abuOfflineOcrPatched=true;const oldRe=DocumentVault.reOcr;DocumentVault.reOcr=()=>{const src=lastImage||$('vOcrImage')?.src;if(src)return recognize(src);if(typeof oldRe==='function')return oldRe()}}
 const prev=window.AbuBassamNativeCameraResult;if(prev&&!prev.__abuOfflineOcrWrapped){const wrap=function(result){if(result&&result.mode==='ocr'&&result.dataUrl){recognize(result.dataUrl);return}return prev(result)};wrap.__abuOfflineOcrWrapped=true;window.AbuBassamNativeCameraResult=wrap}}
 function boot(){bind();let n=0,t=setInterval(()=>{n++;bind();if(n>240)clearInterval(t)},100);(()=>{const cb=bind;const bus=window.__ABU_RUNTIME_REFRESH_BUS__||(window.__ABU_RUNTIME_REFRESH_BUS__=(()=>{const callbacks=new Set();let timer=0;const run=()=>{timer=0;for(const fn of [...callbacks]){try{fn([],null)}catch(e){console.warn('runtime refresh failed',e)}}};const schedule=()=>{if(timer)return;timer=setTimeout(run,40)};window.addEventListener('pageshow',schedule,{passive:true});window.addEventListener('focus',schedule,{passive:true});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')schedule()},{passive:true});document.addEventListener('abu-bassam-section-opened',schedule,{passive:true});document.addEventListener('abu-bassam-settings-opened',schedule,{passive:true});document.addEventListener('abu-bassam-auth-changed',schedule,{passive:true});[120,500,1500].forEach(ms=>setTimeout(schedule,ms));return{add(fn){callbacks.add(fn);schedule()},remove(fn){callbacks.delete(fn)}}})());bus.add(cb);return{disconnect(){bus.remove(cb)},observe(){},takeRecords(){return[]}}})();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')scheduleIdle(15000)})}
