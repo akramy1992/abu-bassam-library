@@ -5,6 +5,7 @@ const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const BUCKET = 'abu-bassam-customers-private';
 const MAX_FILE = 25 * 1024 * 1024;
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const SAFE_EDITED = new Set(['image/jpeg','image/png','image/webp','image/heic','image/heif','image/avif','application/pdf']);
 const SAFE_ORIGINAL = new Set(['image/jpeg','image/png','image/webp','image/heic','image/heif','image/avif']);
 const cors = {
@@ -45,6 +46,66 @@ Deno.serve(async(req:Request)=>{
     const {data:authData,error:authError}=await user.auth.getUser();
     const userId=authData?.user?.id||'';
     if(authError||!userId)return json({error:'NOT_AUTHENTICATED'},401);
+
+    if(action==='trash-list'&&req.method==='GET'){
+      if(!await allowed(admin,userId,deviceId,secret,'customerDocumentsView',false))return json({error:'CUSTOMER_DOCUMENT_VIEW_NOT_ALLOWED'},403);
+      const {data:device}=await admin.from('abu_bassam_devices').select('role').eq('user_id',userId).eq('device_id',deviceId).maybeSingle();
+      let query=admin.from('abu_bassam_customer_documents')
+        .select('document_id,customer_id,owner_device_id,document_label,file_name,deleted_at,size_bytes')
+        .eq('user_id',userId).not('deleted_at','is',null)
+        .gt('deleted_at',new Date(Date.now()-TRASH_RETENTION_MS).toISOString())
+        .order('deleted_at',{ascending:false}).limit(2000);
+      if(device?.role!=='owner')query=query.eq('owner_device_id',deviceId);
+      const {data:items,error}=await query;
+      if(error)return json({error:error.message},500);
+      return json({items:(items||[]).map(x=>({...x,days_remaining:Math.max(0,Math.ceil((Date.parse(x.deleted_at)+TRASH_RETENTION_MS-Date.now())/86400000))}))});
+    }
+
+    if(action==='trash-restore'&&req.method==='POST'){
+      if(!await allowed(admin,userId,deviceId,secret,'customerDocumentsDelete',false))return json({error:'CUSTOMER_DOCUMENT_RESTORE_NOT_ALLOWED'},403);
+      const body=await req.json().catch(()=>({})),documentId=String(body?.document_id||'');
+      if(!documentId)return json({error:'DOCUMENT_REQUIRED'},400);
+      const {data:device}=await admin.from('abu_bassam_devices').select('role').eq('user_id',userId).eq('device_id',deviceId).maybeSingle();
+      const {data:doc,error:docError}=await admin.from('abu_bassam_customer_documents')
+        .select('document_id,customer_id,owner_device_id,deleted_at')
+        .eq('user_id',userId).eq('document_id',documentId).maybeSingle();
+      if(docError||!doc?.deleted_at)return json({error:'DOCUMENT_NOT_IN_TRASH'},404);
+      if(device?.role!=='owner'&&doc.owner_device_id!==deviceId)return json({error:'DOCUMENT_NOT_ALLOWED'},403);
+      if(Date.now()-Date.parse(doc.deleted_at)>=TRASH_RETENTION_MS)return json({error:'TRASH_RETENTION_EXPIRED'},410);
+      const {data:customer,error:customerError}=await admin.from('abu_bassam_customers').select('customer_id,deleted_at').eq('user_id',userId).eq('customer_id',doc.customer_id).maybeSingle();
+      if(customerError||!customer)return json({error:'CUSTOMER_NOT_FOUND'},404);
+      if(customer.deleted_at){
+        if(!await allowed(admin,userId,deviceId,secret,'customerDelete',false))return json({error:'CUSTOMER_RESTORE_NOT_ALLOWED'},403);
+        const {error:parentError}=await admin.from('abu_bassam_customers').update({deleted_at:null,updated_at:new Date().toISOString()})
+          .eq('user_id',userId).eq('customer_id',doc.customer_id);
+        if(parentError)return json({error:parentError.message},500);
+      }
+      const {data:restored,error}=await admin.from('abu_bassam_customer_documents')
+        .update({deleted_at:null,updated_at:new Date().toISOString()})
+        .eq('user_id',userId).eq('document_id',documentId).eq('deleted_at',doc.deleted_at)
+        .select('document_id,customer_id').maybeSingle();
+      if(error)return json({error:error.message},500);
+      if(!restored)return json({error:'RESTORE_CONFLICT'},409);
+      return json({ok:true,document_id:restored.document_id,customer_id:restored.customer_id});
+    }
+
+    if(action==='trash-purge-one'&&req.method==='DELETE'){
+      if(!await allowed(admin,userId,deviceId,secret,'customerDocumentsDelete',false))return json({error:'CUSTOMER_DOCUMENT_DELETE_NOT_ALLOWED'},403);
+      const body=await req.json().catch(()=>({})),documentId=String(body?.document_id||'');
+      if(!documentId)return json({error:'DOCUMENT_REQUIRED'},400);
+      const {data:device}=await admin.from('abu_bassam_devices').select('role').eq('user_id',userId).eq('device_id',deviceId).maybeSingle();
+      const {data:doc,error:docError}=await admin.from('abu_bassam_customer_documents')
+        .select('document_id,owner_device_id,deleted_at,storage_path,original_storage_path')
+        .eq('user_id',userId).eq('document_id',documentId).maybeSingle();
+      if(docError||!doc?.deleted_at)return json({error:'DOCUMENT_NOT_IN_TRASH'},404);
+      if(device?.role!=='owner'&&doc.owner_device_id!==deviceId)return json({error:'DOCUMENT_NOT_ALLOWED'},403);
+      const paths=[...new Set([doc.storage_path,doc.original_storage_path].filter(Boolean))];
+      if(paths.length){const {error}=await admin.storage.from(BUCKET).remove(paths);if(error)return json({error:error.message},500)}
+      const {error}=await admin.from('abu_bassam_customer_documents').delete()
+        .eq('user_id',userId).eq('document_id',documentId).not('deleted_at','is',null);
+      if(error)return json({error:error.message},500);
+      return json({ok:true});
+    }
 
     if(action==='upload'&&req.method==='POST'){
       const form=await req.formData();
@@ -136,8 +197,8 @@ Deno.serve(async(req:Request)=>{
       if(!customerId)return json({error:'CUSTOMER_REQUIRED'},400);
       const {data:paths,error:deleteError}=await user.rpc('abu_bassam_customer_delete',{p_device_id:deviceId,p_device_secret:secret,p_customer_id:customerId});
       if(deleteError)return json({error:deleteError.message},403);
-      await removeQuiet(admin,Array.isArray(paths)?paths.map(String):[]);
-      return json({ok:true,removed_files:Array.isArray(paths)?paths.length:0});
+      // Files remain in private Storage for 30 days; the scheduled purge removes them.
+      return json({ok:true,trashed_files:Array.isArray(paths)?paths.length:0});
     }
 
     if(action==='delete'&&req.method==='DELETE'){
@@ -150,8 +211,8 @@ Deno.serve(async(req:Request)=>{
       const {data:before}=await admin.from('abu_bassam_customer_documents').select('storage_path,original_storage_path').eq('user_id',userId).eq('document_id',documentId).maybeSingle();
       const {error:deleteError}=await user.rpc('abu_bassam_customer_document_delete',{p_device_id:deviceId,p_device_secret:secret,p_document_id:documentId});
       if(deleteError)return json({error:deleteError.message},403);
-      await removeQuiet(admin,[String(before?.storage_path||accessRow.storage_path||''),String(before?.original_storage_path||'')]);
-      return json({ok:true});
+      // Soft-delete metadata only. Keep both original and edited bytes for recovery.
+      return json({ok:true,trashed:true});
     }
     return json({error:'UNSUPPORTED_ACTION'},400);
   }catch(error){return json({error:String((error as Error)?.message||error||'SERVER_ERROR')},500)}
