@@ -9,7 +9,26 @@ function log(type,title,details=''){try{window.AbuBassamOps?.add?.({type,title,d
 function fmt(n){n=Number(n)||0;if(n<1024)return n+' B';if(n<1048576)return(n/1024).toFixed(1)+' KB';return(n/1048576).toFixed(1)+' MB'}
 function when(v){if(!v)return'لا يوجد';try{return new Date(v).toLocaleString('ar-IQ')}catch{return String(v)}}
 function openDb(){return new Promise((o,r)=>{const q=indexedDB.open(DB,1);q.onsuccess=()=>o(q.result);q.onerror=()=>r(q.error||Error('تعذر فتح الأرشيف'))})}
-async function all(){const db=await openDb();return new Promise((o,r)=>{const q=db.transaction(STORE,'readonly').objectStore(STORE).getAll();q.onsuccess=()=>o(q.result||[]);q.onerror=()=>r(q.error)})}
+async function all(){
+  const db=await openDb();
+  return new Promise((resolve,reject)=>{
+    let settled=false;
+    const finish=(error,value)=>{
+      if(settled)return;
+      settled=true;
+      try{db.close()}catch(_){}
+      if(error)reject(error);
+      else resolve(value||[])
+    };
+    try{
+      const tx=db.transaction(STORE,'readonly');
+      tx.onabort=()=>finish(tx.error||new Error('تم إلغاء قراءة الأرشيف'));
+      const request=tx.objectStore(STORE).getAll();
+      request.onsuccess=()=>finish(null,request.result);
+      request.onerror=()=>finish(request.error||new Error('تعذرت قراءة الأرشيف'))
+    }catch(error){finish(error)}
+  })
+}
 function safeSettings(){const out={},ok=window.AbuDocumentVaultHardening?.safeSettingKey;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!(typeof ok==='function'&&ok(k)))continue;const v=localStorage.getItem(k);if(v!==null&&v.length<500000)out[k]=v}return out}
 async function digest(data){const h=await crypto.subtle.digest('SHA-256',data instanceof ArrayBuffer?data:data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));return[...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 async function fingerprint(){const items=(await all()).filter(x=>!x.deleted).map(x=>[x.id,x.name,Number(x.size)||0,x.updatedAt||'',x.folder||'',!!x.favorite]).sort((a,b)=>String(a[0]).localeCompare(String(b[0])));const raw=new TextEncoder().encode(JSON.stringify({items,settings:safeSettings()}));return digest(raw)}
