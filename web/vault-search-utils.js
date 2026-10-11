@@ -67,41 +67,46 @@
     });
   }
 
-  // Metadata-only filtering over records already authorized by the vault.
-  // Never search file contents, tokens or arbitrary object fields.
+  // Additional filters only: file type and folder filtering already exist
+  // in the vault tabs, so do not implement a second copy of them.
+  // The caller must supply records already authorized for this user.
   function filterMetadata(item, options = {}) {
     if (!item || item.deleted) return false;
-    const name = String(item.name || '');
-    const mime = String(item.mime || '').toLowerCase();
-    const optionsSafe = options && typeof options === 'object' ? options : {};
-    const folder = normalize(optionsSafe.folder);
-    const ownFolder = normalize(item.folder);
-    if (folder && ownFolder !== folder && !ownFolder.startsWith(folder + '/')) return false;
-    const docNo = normalize(optionsSafe.documentNumber);
-    if (docNo && ![item.documentNumber, item.referenceNumber].some(v => normalize(v) === docNo)) return false;
-    const kind = String(optionsSafe.kind || 'all');
-    if (kind !== 'all') {
-      const extension = name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || '';
-      const actual = mime.startsWith('image/') || item.category === 'image' ? 'image'
-        : mime === 'application/pdf' || extension === 'pdf' ? 'pdf'
-        : mime.startsWith('text/') || ['txt','rtf','csv','json','xml','html'].includes(extension) ? 'text'
-        : 'file';
-      if (actual !== kind) return false;
+    const opts = options && typeof options === 'object' ? options : {};
+    const documentNumber = normalize(opts.documentNumber);
+    if (documentNumber && ![item.documentNumber, item.referenceNumber]
+      .some(value => normalize(value) === documentNumber)) return false;
+
+    const minKb = opts.minKb == null || opts.minKb === '' ? null : Number(opts.minKb);
+    const maxKb = opts.maxKb == null || opts.maxKb === '' ? null : Number(opts.maxKb);
+    if ((minKb !== null && (!Number.isFinite(minKb) || minKb < 0))
+      || (maxKb !== null && (!Number.isFinite(maxKb) || maxKb < 0))
+      || (minKb !== null && maxKb !== null && minKb > maxKb)) return false;
+    if (minKb !== null || maxKb !== null) {
+      if (item.size == null) return false;
+      const size = Number(item.size);
+      if (!Number.isFinite(size) || size < 0) return false;
+      if (minKb !== null && size < minKb * 1024) return false;
+      if (maxKb !== null && size > maxKb * 1024) return false;
     }
-    const size = Number(item.size);
-    const min = optionsSafe.minKb === '' || optionsSafe.minKb == null ? null : Number(optionsSafe.minKb);
-    const max = optionsSafe.maxKb === '' || optionsSafe.maxKb == null ? null : Number(optionsSafe.maxKb);
-    if ((min !== null || max !== null) && (!Number.isFinite(size) || size < 0)) return false;
-    if (min !== null && (!Number.isFinite(min) || min < 0 || size < min * 1024)) return false;
-    if (max !== null && (!Number.isFinite(max) || max < 0 || size > max * 1024)) return false;
-    for (const [name, value] of [['createdAt', optionsSafe.createdFrom], ['updatedAt', optionsSafe.updatedFrom]]) {
-      if (!value) continue;
-      // Date-picker values are YYYY-MM-DD; comparing the UTC date component
-      // avoids invalid dates, locale ambiguity and timezone-day shifting.
-      const date = String(value);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date))) return false;
-      const actual = Date.parse(item[name] || '');
-      if (!Number.isFinite(actual) || actual < Date.parse(date + 'T00:00:00Z')) return false;
+
+    for (const [field, fromKey, toKey] of [
+      ['createdAt', 'createdFrom', 'createdTo'],
+      ['updatedAt', 'updatedFrom', 'updatedTo']
+    ]) {
+      const from = opts[fromKey], to = opts[toKey];
+      if (!from && !to) continue;
+      const actual = Date.parse(item[field] || '');
+      if (!Number.isFinite(actual)) return false;
+      for (const [value, isFrom] of [[from, true], [to, false]]) {
+        if (!value) continue;
+        const date = String(value);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+        const stamp = Date.parse(date + 'T00:00:00Z');
+        if (!Number.isFinite(stamp) || new Date(stamp).toISOString().slice(0, 10) !== date) return false;
+        // Inclusive calendar-day upper bound without applying a local timezone.
+        if (isFrom ? actual < stamp : actual >= stamp + 86400000) return false;
+      }
     }
     return true;
   }
