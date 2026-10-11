@@ -34,6 +34,36 @@ assert.equal(search.matches(sample,'تأييد مدرسة'),true);
 assert.equal(search.matches(sample,'تأييد لايوجد'),false);
 assert.equal(search.matches({name:'أسئلة',token:'SECRET_VALUE'},'SECRET_VALUE'),false);
 assert.equal(search.matches({name:'هوية',deleted:true},'هوية'),true,'Filtering deleted items remains the responsibility of the vault query');
+const metadata={
+  name:'كتاب تأييد القادسية',
+  documentNumber:'١٢٥',
+  size:2048,
+  updatedAt:'2026-10-10T17:00:00.000Z',
+  createdAt:'2026-10-08T09:00:00.000Z'
+};
+assert.equal(search.filterMetadata(metadata,{documentNumber:'125'}),true);
+assert.equal(search.filterMetadata(metadata,{documentNumber:'126'}),false);
+assert.equal(search.filterMetadata(metadata,{documentNumber:'125',minKb:'2',maxKb:'2'}),true);
+assert.equal(search.filterMetadata(metadata,{minKb:'3'}),false);
+assert.equal(search.filterMetadata(metadata,{maxKb:'1'}),false);
+assert.equal(search.filterMetadata(metadata,{minKb:'3',maxKb:'1'}),false);
+assert.equal(search.filterMetadata({...metadata,size:null},{minKb:'1'}),false);
+assert.equal(search.filterMetadata({...metadata,deleted:true},{}),false);
+assert.equal(search.filterMetadata({...metadata,token:'125',documentNumber:''},{documentNumber:'125'}),false);
+assert.equal(search.filterMetadata(metadata,{updatedFrom:'2026-10-10',updatedTo:'2026-10-10'}),true);
+assert.equal(search.filterMetadata(metadata,{updatedFrom:'2026-10-11'}),false);
+assert.equal(search.filterMetadata(metadata,{updatedTo:'2026-10-09'}),false);
+assert.equal(search.filterMetadata(metadata,{createdFrom:'2026-10-08',createdTo:'2026-10-08'}),true);
+assert.equal(search.filterMetadata(metadata,{updatedFrom:'2026-02-31'}),false);
+assert.equal(search.filterMetadata(metadata,{minKb:'oops'}),false);
+// Reuse existing type/folder tabs rather than registering duplicate UI handlers.
+assert.equal((vault.match(/function setSearchDetail\(/g)||[]).length,1);
+assert.equal((vault.match(/data-vault-search-detail="documentNumber"/g)||[]).length,1);
+assert.ok(vault.includes('search?.filterMetadata?.(item,details)'));
+assert.ok(vault.includes('matchesFilter(item)&&matchesQuery(item)&&detailsMatch(item)'));
+assert.ok(vault.includes("document.querySelectorAll('[data-vault-search-detail]')"));
+assert.ok(vault.includes("data-filter=\"folder:المستمسكات\""));
+
 assert.ok(shell.indexOf('vault-search-utils.js')<shell.indexOf('document-vault-runtime.js'));
 assert.ok(vault.includes('AbuBassamVaultSearch.matches(item,query)') || vault.includes('search.matches(item,query)'));
 assert.ok(vault.includes('function clearSearch()'));
