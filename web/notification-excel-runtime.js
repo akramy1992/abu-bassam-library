@@ -10,7 +10,30 @@ function cells(){return [...document.querySelectorAll('#abuReportRows .abu-repor
 function col(n){let s='';for(n++;n>0;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s;return s}
 function cell(ref,value,style=0){return `<c r="${ref}" t="inlineStr"${style?` s="${style}"`:''}><is><t xml:space="preserve">${xml(value)}</t></is></c>`}
 function row(index,values,style=0){return `<row r="${index}">${values.map((v,i)=>cell(`${col(i)}${index}`,v,style)).join('')}</row>`}
-function loadZip(){if(window.JSZip)return Promise.resolve(window.JSZip);return new Promise((resolve,reject)=>{const found=document.querySelector('script[data-abu-jszip]');if(found){found.addEventListener('load',()=>window.JSZip?resolve(window.JSZip):reject(new Error('JSZip unavailable')),{once:true});found.addEventListener('error',()=>reject(new Error('JSZip load failed')),{once:true});return}const s=document.createElement('script');s.src='jszip.min.js';s.async=false;s.dataset.abuJszip='1';s.onload=()=>window.JSZip?resolve(window.JSZip):reject(new Error('JSZip unavailable'));s.onerror=()=>reject(new Error('JSZip load failed'));document.head.appendChild(s)})}
+let zipLoadPending=null;
+function loadZip(){
+  if(window.JSZip)return Promise.resolve(window.JSZip);
+  if(zipLoadPending)return zipLoadPending;
+  zipLoadPending=new Promise((resolve,reject)=>{
+    document.querySelector('script[data-abu-jszip]')?.remove();
+    const script=document.createElement('script');
+    script.src='jszip.min.js';script.async=false;script.dataset.abuJszip='1';
+    let settled=false;
+    const fail=message=>{
+      if(settled)return;
+      settled=true;clearTimeout(watchdog);script.remove();reject(new Error(message))
+    };
+    const watchdog=setTimeout(()=>fail('JSZip load timeout'),15000);
+    script.onload=()=>{
+      if(!window.JSZip)return fail('JSZip unavailable');
+      if(settled)return;
+      settled=true;clearTimeout(watchdog);resolve(window.JSZip)
+    };
+    script.onerror=()=>fail('JSZip load failed');
+    try{document.head.appendChild(script)}catch(error){fail(String(error?.message||error))}
+  }).finally(()=>{zipLoadPending=null});
+  return zipLoadPending
+}
 async function makeWorkbook(reportRows,from,to){
   const JSZip=await loadZip(),zip=new JSZip();
   const rows=[['تقرير عمليات الأجهزة الفرعية — مكتبة أبو بسام','',''],[`الفترة: ${from||'—'} إلى ${to||'—'}`,`عدد العمليات: ${reportRows.length}`,''],['التاريخ / الجهاز','العملية / التفاصيل','النوع / المستوى'],...reportRows];
