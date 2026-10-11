@@ -1,4 +1,4 @@
-name: Android checks and build
+name: Android build disabled - source repairs only
 on:
   workflow_dispatch:
     inputs:
@@ -10,11 +10,12 @@ on:
         options:
           - test
           - production
-  pull_request:
 permissions:
   contents: read
 jobs:
   build:
+    # Never build or sign APKs in GitHub Actions, including manual runs.
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
