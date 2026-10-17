@@ -24,7 +24,8 @@ if(process.env.ABU_BASSAM_DIAGNOSTIC_BUILD==='1'){
   assert.ok(device.includes('mountOfflineDiagnostic();'),'visible local diagnostic touch controls required');
   assert.ok(device.includes("if(OFFLINE_DIAGNOSTIC_ONLY){"),'must short-circuit production auth loader');
   assert.ok(device.includes("if(!OFFLINE_DIAGNOSTIC_ONLY||document.getElementById('abuDiagnosticTouchInput'))return;"),'diagnostic controls must be idempotent');
-  assert.ok(native.includes('pointerEvents="box-none"'),'native probe overlay must not block WebView');
+  assert.ok(!native.includes('touchProbeLayer'),'native test overlay must not block WebView navigation');
+  assert.ok(native.includes("message.type === 'touchRendererToggle'"),'inline renderer switch required');
   console.log('Offline no-login diagnostic safety checks passed: separate app ID, network denied, secure bridge disabled, login boot not loaded, touch inputs available.');
   process.exit(0);
 }
