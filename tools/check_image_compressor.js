@@ -20,8 +20,9 @@ for(const m of [
   'window.parent?.Android?.savePagesToGallery','browserSave(r.name,r.dataUrl)','isImageFile'
 ])need(html,m,'image compressor');
 for(const m of ['SAFE_MAX_PIXELS=24_000_000','while(true)'])forbid(html,m,'image compressor');
-const patch=read(path.join(root,'scripts','patch-startup-stability.mjs'));
-for(const m of ['encodedNameMatch','decodeURIComponent(encodedNameMatch[1])','itemMime','imagePages.length > 20','requestedName || fallbackName','named mixed-format compressed image saving'])need(patch,m,'Android compressor patch');
+// The historical patch script is deliberately absent. Test the live native source instead.
+if(fs.existsSync(path.join(root,'scripts','patch-startup-stability.mjs')))
+  errors.push('obsolete startup patch must not be restored');
 const index=read(path.join(root,'index.js'));
 for(const m of ['encodedNameMatch','itemMime','requestedName || fallbackName','onRenderProcessGone','recoverWebRenderer'])need(index,m,'patched Android index');
 if(errors.length){process.stderr.write(errors.join('\n')+'\n');process.exit(1)}
