@@ -457,7 +457,7 @@ function App() {
         ) : (
           <><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري التحقق من واجهة الدخول الآمنة…</Text></>
         )}
-      </View>
+      </View>}
       {cameraMode && (
         <View style={styles.cameraOverlay}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cameraFacing} enableTorch={cameraFacing === 'back' && torch}
