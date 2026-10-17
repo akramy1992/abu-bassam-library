@@ -4,6 +4,9 @@ const app=JSON.parse(fs.readFileSync(path.join(root,'app.json'),'utf8')).expo;
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 const lock=JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'),'utf8'));
 const native=fs.readFileSync(path.join(root,'index.js'),'utf8');
+const updateRuntime=fs.readFileSync(path.join(root,'web','app-update-runtime.js'),'utf8');
+const updateIdentity=updateRuntime.match(/const APP_VERSION='([^']+)',BUILD_NUMBER=(\d+),/);
+
 const errors=[];
 const version=String(app.version||'');
 const expectedPackage='com.abubassam.librarycamera3';
@@ -14,6 +17,8 @@ if(lock.version!==version||lock.packages?.['']?.version!==version)errors.push('p
 const vm=native.match(/const APP_VERSION = '([^']+)';/),bm=native.match(/const BUILD_NUMBER = '([^']+)';/);
 if(!vm||vm[1]!==version)errors.push('index.js APP_VERSION does not match app.json');
 if(!bm||Number(bm[1])!==Number(app.android?.versionCode))errors.push('index.js BUILD_NUMBER does not match android.versionCode');
+if(!updateIdentity||updateIdentity[1]!==version||Number(updateIdentity[2])!==Number(app.android?.versionCode))errors.push('web/app-update-runtime.js version/build are not synchronized with app.json');
+
 if(Number(app.android?.versionCode)<=432)errors.push('android.versionCode must stay above retired build 432');
 if(!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version))errors.push('invalid semantic app version');
 if(app.android?.package!==expectedPackage)errors.push(`Android package must remain ${expectedPackage} for update continuity`);
