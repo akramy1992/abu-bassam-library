@@ -78,6 +78,18 @@
   }
   function loadApprovedUi(){
     if(OFFLINE_DIAGNOSTIC_ONLY){
+      // This device is NOT an owner account. Local-only test controls are
+      // permitted in a separate network-denied APK; real accounts, vaults,
+      // recovery, device registry and cloud operations remain unavailable.
+      const localUiKeys=new Set([
+        'imageImport','imageExport','exportOutsideApp','printGeneral','printCards',
+        'printA4','printCardDirect','pdfCreate','pdfSave','settingsPrinting',
+        'questionsView','questionsEdit','questionsCreate','compressUse'
+      ]);
+      window.AbuBassamPermissions=Object.freeze({
+        __abuOfflineDiagnosticOnly:true,items:[],
+        can(key){return /^cards[A-Z]/.test(String(key))||localUiKeys.has(String(key))}
+      });
       // No account gate, password or biometric setup, owner privilege, device
       // registry, recovery, synchronisation or cloud management in this build.
       loadFeatureRecovery();loadChildTemplates();loadCardModels();loadStandaloneCardModels();
