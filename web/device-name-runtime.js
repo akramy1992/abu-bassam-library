@@ -61,7 +61,7 @@
     banner.id='abuDiagnosticBanner';
     banner.setAttribute('aria-label','واجهة فحص اللمس دون تسجيل دخول');
     banner.style.cssText='position:relative;z-index:20;background:#fff3cb;color:#42311b;border:3px solid #d58900;padding:12px 10px;direction:rtl;text-align:center;box-sizing:border-box;display:grid;gap:8px';
-    banner.innerHTML='<strong style="font-size:14px">🧪 نسخة فحص مستقلة — بدون تسجيل دخول</strong><small>بيانات تجريبية محلية فقط • الاتصال بالحسابات والخادم معطّل</small><input id="abuDiagnosticTouchInput" type="text" autocomplete="off" placeholder="المس هنا لتجربة لوحة المفاتيح" aria-label="تجربة الكتابة" style="width:100%;font-size:16px;min-height:48px;border:2px solid #9c7117;border-radius:9px;background:white;color:black;text-align:center"><button id="abuDiagnosticTapButton" type="button" style="background:#007e71;color:white;font-size:16px;min-height:48px;border:0;border-radius:10px">اختبار نقر صفحة الويب</button><output id="abuDiagnosticTapResult" style="font-size:12px;min-height:16px">لم يتم الضغط بعد</output>';
+    banner.innerHTML='<strong style="font-size:14px">🧪 نسخة فحص مستقلة — بدون تسجيل دخول</strong><small>بيانات تجريبية محلية فقط • الاتصال بالحسابات والخادم معطّل</small><input id="abuDiagnosticTouchInput" type="text" autocomplete="off" placeholder="المس هنا لتجربة لوحة المفاتيح" aria-label="تجربة الكتابة" style="width:100%;font-size:16px;min-height:48px;border:2px solid #9c7117;border-radius:9px;background:white;color:black;text-align:center"><button id="abuDiagnosticTapButton" type="button" style="background:#007e71;color:white;font-size:16px;min-height:48px;border:0;border-radius:10px">اختبار نقر صفحة الويب</button><button id="abuDiagnosticRendererSwitch" type="button" style="background:#60524a;color:white;font-size:14px;min-height:44px;border:0;border-radius:10px">تجربة طريقة عرض بديلة</button><output id="abuDiagnosticTapResult" style="font-size:12px;min-height:16px">لم يتم الضغط بعد</output>';
     home.insertBefore(banner,home.firstChild);
     const input=banner.querySelector('#abuDiagnosticTouchInput');
     const output=banner.querySelector('#abuDiagnosticTapResult');
@@ -73,6 +73,7 @@
     input.addEventListener('focus',()=>{output.textContent='حقل الكتابة استقبل التركيز ✅';send('focus','abuDiagnosticTouchInput')});
     input.addEventListener('input',()=>{output.textContent='الكتابة تعمل ✅';send('input','abuDiagnosticTouchInput')});
     button.addEventListener('click',()=>{count+=1;output.textContent='النقر يعمل ✅ ('+count+')';send('click','abuDiagnosticTapButton')});
+    banner.querySelector('#abuDiagnosticRendererSwitch')?.addEventListener('click',()=>{output.textContent='تبديل عرض WebView ثم إعادة فتح الواجهة…';send('touchRendererToggle','abuDiagnosticRendererSwitch')});
     window.__ABU_DIAGNOSTIC_READY__=true;
     try{window.ReactNativeWebView?.postMessage(JSON.stringify({type:'webBootReady',component:'diagnostic-shell'}))}catch(_){}
   }
