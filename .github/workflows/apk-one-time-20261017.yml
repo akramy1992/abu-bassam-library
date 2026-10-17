@@ -1,9 +1,9 @@
-name: One-time Abu Bassam 6.0.0 APK test build
+name: One-time Abu Bassam 6.0.1 APK test build
 
 on:
   push:
     branches:
-      - build/apk-6-0-0-20261017
+      - fix/android-startup-webview-20261017
 
 permissions:
   contents: read
@@ -46,6 +46,9 @@ jobs:
           APK="$(find android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -type f -print -quit)"
           test -n "$APK"
           test -s "$APK"
+          unzip -Z1 "$APK" | grep -Fxq 'assets/library/index.html'
+          unzip -Z1 "$APK" | grep -Fxq 'assets/library/app-security-runtime.js'
+          unzip -Z1 "$APK" | grep -Fxq 'assets/library/device-name-runtime.js'
           unzip -Z1 "$APK" | grep -Fxq 'assets/index.android.bundle'
           test "$(unzip -p "$APK" assets/index.android.bundle | wc -c)" -gt 1000
           BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
@@ -63,7 +66,7 @@ jobs:
       - name: Upload newly built APK
         uses: actions/upload-artifact@v4
         with:
-          name: abu-bassam-6-0-0-new-test-apk-${{ github.sha }}
+          name: abu-bassam-6-0-1-new-test-apk-${{ github.sha }}
           path: dist/
           if-no-files-found: error
           retention-days: 14
