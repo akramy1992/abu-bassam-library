@@ -147,8 +147,7 @@ function App() {
   const [webInstanceKey, setWebInstanceKey] = useState(0);
   const [startupError, setStartupError] = useState(null);
   const rendererRestarts = useRef(0);
-  const [touchProbeOpen, setTouchProbeOpen] = useState(false);
-  const [touchProbeMessage, setTouchProbeMessage] = useState('اضغط اختبار ثم المس حقل كلمة المرور.');
+  // Diagnostic test controls belong to the scrollable web page only.
   const [useSoftwareWebView, setUseSoftwareWebView] = useState(false);
 
   const inject = useCallback((functionName, payload) => {
@@ -433,18 +432,12 @@ function App() {
       return replySecurity(message.requestId, false, null, 'DIAGNOSTIC_SECURITY_DISABLED');
     if (IS_OFFLINE_DIAGNOSTIC && message.type === 'openExternal')
       return Alert.alert('نسخة فحص محلية', 'الروابط الخارجية معطلة في هذه النسخة التجريبية.');
-    if (message.type === 'touchProbeResult') {
-      setTouchProbeMessage(message.issue
-        ? 'Android يستقبل اللمس، لكن حقل تجربة اللمس غير موجود: ' + message.issue
-        : message.target === message.expected && !message.disabled && message.pointer !== 'none'
-          ? 'رد WebView سليم. الآن المس حقل الفحص: إذا لم يتغير النص، فاللمس لا يصل إلى صفحة الويب.'
-          : 'فحص الحقل: العنصر المغطي ' + message.target + '، disabled=' + String(message.disabled) + '، pointer=' + String(message.pointer));
+    if (message.type === 'touchRendererToggle'){
+      setUseSoftwareWebView((value)=>!value);
+      setWebReady(false);setStartupError(null);setWebInstanceKey((value)=>value+1);
       return;
     }
-    if (message.type === 'touchProbeEvent') {
-      setTouchProbeMessage('وصل ' + String(message.kind).slice(0, 20) + ' إلى WebView عند ' + String(message.target).slice(0, 70) + ' ✅');
-      return;
-    }
+    if(message.type === 'touchProbeResult'||message.type === 'touchProbeEvent')return;
     // Isolated diagnostic page acknowledgment, not a login bypass.
     if (message.type === 'webBootReady' && message.component === 'diagnostic-shell') {
       setStartupError(null);
@@ -472,18 +465,6 @@ function App() {
     if (message.type === 'security') return handleSecurity(message);
     if (message.type === 'exitApp') return BackHandler.exitApp();
   }, [cleanCache, getDeviceInfo, handleSecurity, openAppSettings, openCamera, openExternal, printBase64, printHtml, printPages, saveBase64, savePdfHtml, savePagesToGallery, saveToGallery, shareBase64]);
-
-  const startTouchProbe = useCallback(() => {
-    setTouchProbeOpen(true);
-    setTouchProbeMessage('زر Android يستجيب ✅ — أنتظر الآن رد صفحة الفحص...');
-    inject('AbuBassamNativeTouchProbe', {});
-  }, [inject]);
-  const switchWebViewLayer = useCallback(() => {
-    const alternative = !useSoftwareWebView;
-    setUseSoftwareWebView(alternative);
-    setTouchProbeMessage(alternative ? 'فعّلت وضع العرض البرمجي. جرّب حقل اللمس في أعلى الصفحة.' : 'أعدت وضع العرض العتادي. انتظر فتح الدخول ثم جرّب الحقل.');
-    retryStartupManually();
-  }, [retryStartupManually, useSoftwareWebView]);
 
   const barcodeMode = cameraMode === 'barcode';
   return (
@@ -519,25 +500,6 @@ function App() {
           <><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري فتح واجهة الفحص دون تسجيل دخول…</Text></>
         )}
       </View>}
-      {!cameraMode && webReady && (
-        <View pointerEvents="box-none" style={styles.touchProbeLayer}>
-          {touchProbeOpen ? (
-            <View style={styles.touchProbePanel}>
-              <Text style={styles.touchProbeText}>{touchProbeMessage}</Text>
-              <TouchableOpacity style={styles.touchProbeButton} onPress={switchWebViewLayer} accessibilityRole="button">
-                <Text style={styles.touchProbeButtonText}>{useSoftwareWebView ? 'تجربة العرض العتادي' : 'تجربة العرض البديل'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.touchProbeDismiss} onPress={() => setTouchProbeOpen(false)} accessibilityRole="button">
-                <Text style={styles.touchProbeButtonText}>إغلاق الاختبار</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.touchProbeButton} onPress={startTouchProbe} accessibilityRole="button" accessibilityLabel="اختبار استجابة لمس Android">
-              <Text style={styles.touchProbeButtonText}>اختبار اللمس</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
       {cameraMode && (
         <View style={styles.cameraOverlay}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cameraFacing} enableTorch={cameraFacing === 'back' && torch}
@@ -573,12 +535,6 @@ const styles = StyleSheet.create({
   startupRetry: { marginTop: 22, backgroundColor: '#087f72', borderRadius: 12, paddingHorizontal: 26, paddingVertical: 14 },
   startupRetryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   startupHelp: { marginTop: 16, fontSize: 11, color: '#76533e', textAlign: 'center' },
-  touchProbeLayer: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: 38, paddingHorizontal: 8, zIndex: 50, elevation: 50 },
-  touchProbePanel: { backgroundColor: '#ffffff', borderRadius: 12, width: 255, padding: 9, borderWidth: 1, borderColor: '#bba894', gap: 7 },
-  touchProbeText: { color: '#251d16', fontSize: 12, textAlign: 'center' },
-  touchProbeButton: { backgroundColor: '#096d65', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
-  touchProbeButtonText: { fontWeight: '700', color: '#fff', fontSize: 12 },
-  touchProbeDismiss: { backgroundColor: '#68574d', borderRadius: 8, padding: 9, alignItems: 'center' },
   cameraOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100, backgroundColor: '#000' },
   cameraShade: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 38 },
   cameraHeader: { width: '100%', paddingTop: 14, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
