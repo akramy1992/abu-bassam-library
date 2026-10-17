@@ -24,8 +24,8 @@ import * as Sharing from 'expo-sharing';
 import { WebView } from 'react-native-webview';
 
 const APP_URL = 'file:///android_asset/library/index.html';
-const APP_VERSION = '6.0.1';
-const BUILD_NUMBER = '601';
+const APP_VERSION = '6.0.2';
+const BUILD_NUMBER = '602';
 const PRIVACY_CAPTURE_KEY = 'abu-bassam-private-screen';
 const STARTUP_WATCHDOG_MS = 25000;
 const BARCODE_TYPES = [
@@ -56,6 +56,32 @@ const ANDROID_BRIDGE = `
     security: function (action, requestId, payload) { send('security', { action: action, requestId: requestId, payload: payload || {} }); },
     exitApp: function () { send('exitApp'); }
   };
+  // Diagnostic is opt-in: report only control identifiers, never credentials.
+  window.__ABU_BASSAM_TOUCH_PROBE__ = false;
+  window.AbuBassamNativeTouchProbe = function () {
+    window.__ABU_BASSAM_TOUCH_PROBE__ = true;
+    var p = document.getElementById('abuLoginPass');
+    if (!p) { send('touchProbeResult', { issue: 'NO_LOGIN_INPUT' }); return; }
+    var r = p.getBoundingClientRect();
+    var top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    send('touchProbeResult', {
+      target: String(top && top.id || top && top.tagName || 'none').slice(0, 70),
+      expected: 'abuLoginPass',
+      disabled: !!p.disabled,
+      pointer: getComputedStyle(p).pointerEvents
+    });
+  };
+  ['pointerdown', 'touchstart', 'click'].forEach(function (kind) {
+    document.addEventListener(kind, function (event) {
+      if (!window.__ABU_BASSAM_TOUCH_PROBE__) return;
+      var gate = document.getElementById('abuSecurityGate');
+      if (!gate || !gate.contains(event.target)) return;
+      send('touchProbeEvent', {
+        kind: kind,
+        target: String(event.target && event.target.id || event.target && event.target.tagName || 'unknown').slice(0, 70)
+      });
+    }, true);
+  });
   window.__ABU_BASSAM_NATIVE_CAMERA__ = true;
   window.__ABU_BASSAM_NATIVE_SECURITY__ = true;
 })();
@@ -119,6 +145,9 @@ function App() {
   const [webInstanceKey, setWebInstanceKey] = useState(0);
   const [startupError, setStartupError] = useState(null);
   const rendererRestarts = useRef(0);
+  const [touchProbeOpen, setTouchProbeOpen] = useState(false);
+  const [touchProbeMessage, setTouchProbeMessage] = useState('اضغط اختبار ثم المس حقل كلمة المرور.');
+  const [useSoftwareWebView, setUseSoftwareWebView] = useState(false);
 
   const inject = useCallback((functionName, payload) => {
     const json = JSON.stringify(payload).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
@@ -397,6 +426,18 @@ function App() {
 
   const onWebMessage = useCallback(async (event) => {
     let message; try { message = JSON.parse(event.nativeEvent.data); } catch (_) { return; }
+    if (message.type === 'touchProbeResult') {
+      setTouchProbeMessage(message.issue
+        ? 'Android يستقبل اللمس، لكن مدخل كلمة المرور غير متوفر: ' + message.issue
+        : message.target === message.expected && !message.disabled && message.pointer !== 'none'
+          ? 'رد WebView سليم. الآن المس كلمة المرور: إذا لم يتغير النص، فاللمس لا يصل إلى صفحة الويب.'
+          : 'فحص الحقل: العنصر المغطي ' + message.target + '، disabled=' + String(message.disabled) + '، pointer=' + String(message.pointer));
+      return;
+    }
+    if (message.type === 'touchProbeEvent') {
+      setTouchProbeMessage('وصل ' + String(message.kind).slice(0, 20) + ' إلى WebView عند ' + String(message.target).slice(0, 70) + ' ✅');
+      return;
+    }
     // Ignore device-name-runtime's early boot signal: only the mounted login gate is ready.
     if (message.type === 'webBootReady' && message.component === 'login-gate') {
       setStartupError(null);
@@ -425,12 +466,25 @@ function App() {
     if (message.type === 'exitApp') return BackHandler.exitApp();
   }, [cleanCache, getDeviceInfo, handleSecurity, openAppSettings, openCamera, openExternal, printBase64, printHtml, printPages, saveBase64, savePdfHtml, savePagesToGallery, saveToGallery, shareBase64]);
 
+  const startTouchProbe = useCallback(() => {
+    setTouchProbeOpen(true);
+    setTouchProbeMessage('زر Android يستجيب ✅ — أنتظر الآن رد WebView...');
+    inject('AbuBassamNativeTouchProbe', {});
+  }, [inject]);
+  const switchWebViewLayer = useCallback(() => {
+    const alternative = !useSoftwareWebView;
+    setUseSoftwareWebView(alternative);
+    setTouchProbeMessage(alternative ? 'فعّلت وضع العرض البرمجي. انتظر فتح الدخول ثم جرّب الحقل.' : 'أعدت وضع العرض العتادي. انتظر فتح الدخول ثم جرّب الحقل.');
+    retryStartupManually();
+  }, [retryStartupManually, useSoftwareWebView]);
+
   const barcodeMode = cameraMode === 'barcode';
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle={cameraMode ? 'light-content' : 'dark-content'} backgroundColor={cameraMode ? '#000000' : '#fffaf3'} />
       <WebView
         key={webInstanceKey} ref={webRef} source={{ uri: APP_URL }} style={styles.webView} originWhitelist={['file://*','about:*']} javaScriptEnabled domStorageEnabled
+        androidLayerType={useSoftwareWebView ? 'software' : 'hardware'}
         allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs mixedContentMode="never"
         setSupportMultipleWindows={false} mediaPlaybackRequiresUserAction={false}
         injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE} onMessage={onWebMessage} onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
@@ -458,6 +512,25 @@ function App() {
           <><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري التحقق من واجهة الدخول الآمنة…</Text></>
         )}
       </View>}
+      {!cameraMode && webReady && (
+        <View pointerEvents="box-none" style={styles.touchProbeLayer}>
+          {touchProbeOpen ? (
+            <View style={styles.touchProbePanel}>
+              <Text style={styles.touchProbeText}>{touchProbeMessage}</Text>
+              <TouchableOpacity style={styles.touchProbeButton} onPress={switchWebViewLayer} accessibilityRole="button">
+                <Text style={styles.touchProbeButtonText}>{useSoftwareWebView ? 'تجربة العرض العتادي' : 'تجربة العرض البديل'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.touchProbeDismiss} onPress={() => setTouchProbeOpen(false)} accessibilityRole="button">
+                <Text style={styles.touchProbeButtonText}>إغلاق الاختبار</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.touchProbeButton} onPress={startTouchProbe} accessibilityRole="button" accessibilityLabel="اختبار استجابة لمس Android">
+              <Text style={styles.touchProbeButtonText}>اختبار اللمس</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
       {cameraMode && (
         <View style={styles.cameraOverlay}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cameraFacing} enableTorch={cameraFacing === 'back' && torch}
@@ -493,6 +566,12 @@ const styles = StyleSheet.create({
   startupRetry: { marginTop: 22, backgroundColor: '#087f72', borderRadius: 12, paddingHorizontal: 26, paddingVertical: 14 },
   startupRetryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   startupHelp: { marginTop: 16, fontSize: 11, color: '#76533e', textAlign: 'center' },
+  touchProbeLayer: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', alignItems: 'flex-start', padding: 8, zIndex: 50, elevation: 50 },
+  touchProbePanel: { backgroundColor: '#ffffff', borderRadius: 12, width: 255, padding: 9, borderWidth: 1, borderColor: '#bba894', gap: 7 },
+  touchProbeText: { color: '#251d16', fontSize: 12, textAlign: 'center' },
+  touchProbeButton: { backgroundColor: '#096d65', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
+  touchProbeButtonText: { fontWeight: '700', color: '#fff', fontSize: 12 },
+  touchProbeDismiss: { backgroundColor: '#68574d', borderRadius: 8, padding: 9, alignItems: 'center' },
   cameraOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100, backgroundColor: '#000' },
   cameraShade: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 38 },
   cameraHeader: { width: '100%', paddingTop: 14, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
