@@ -38,7 +38,7 @@ const webVersionFiles=['web/account-center-runtime.js','web/account-recovery-har
 const webUpdates=webVersionFiles.map(filename=>{
   const source=fs.readFileSync(path.join(root,filename),'utf8');
   const re=filename.endsWith('app-update-runtime.js')
-    ?/APP_VERSION='[^']+',BUILD_NUMBER=\\d+/
+    ?/APP_VERSION='[^']+',BUILD_NUMBER=\d+/
     :/APP='[^']+'/;
   if(!re.test(source))fail('Runtime version marker missing: '+filename);
   const value=filename.endsWith('app-update-runtime.js')
