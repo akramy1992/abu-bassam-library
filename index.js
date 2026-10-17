@@ -368,7 +368,8 @@ function App() {
     const url = String(request?.url || '').trim();
     if (!url || url === 'about:blank' || url.startsWith('file:///android_asset/library/')) return true;
     if (/^(https:|tel:|mailto:|tg:|whatsapp:)/i.test(url)) {
-      openExternal({ url });
+      // Isolated offline build must not open customer/account destinations.
+      if (!IS_OFFLINE_DIAGNOSTIC) openExternal({ url });
       return false;
     }
     return false;
@@ -491,7 +492,7 @@ function App() {
       <WebView
         key={webInstanceKey} ref={webRef} source={{ uri: APP_URL }} style={styles.webView} originWhitelist={['file://*','about:*']} javaScriptEnabled domStorageEnabled
         androidLayerType={useSoftwareWebView ? 'software' : 'hardware'}
-        allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs mixedContentMode="never"
+        allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs={false} mixedContentMode="never"
         setSupportMultipleWindows={false} mediaPlaybackRequiresUserAction={false}
         injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE} onMessage={onWebMessage} onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         onLoadEnd={() => webRef.current?.injectJavaScript(`(function(){try{if(window.__ABU_DIAGNOSTIC_READY__ && document.getElementById('abuDiagnosticTouchInput'))window.ReactNativeWebView.postMessage(JSON.stringify({type:'webBootReady',component:'diagnostic-shell'}));}catch(e){}})();true;`)}
