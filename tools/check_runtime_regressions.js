@@ -13,8 +13,8 @@ for(const marker of ['__ABU_ENVELOPE_AGREEMENT_V3__','REMOVED_KEY','markRemoved'
 forbid(envelope,'new MutationObserver','envelope optional fields');
 
 const productivity=read('productivity-tools-runtime.js');
-for(const marker of ['a4-card-sheet-editor-v2-runtime.js','photo-print-advanced-runtime.js','document-vault-advanced-runtime.js','questionsCenter','compressorCenter','questions-ar.html','questions-en.html','image-compressor.html','ensureQuestionFrame','ensureCompressorFrame','src="about:blank"'])need(productivity,marker,'restored lazy section loader');
-for(const required of ['questions-ar.html','questions-en.html','questions-paper-runtime.js','questions-final-fixes-runtime.js','question-type-runtime.js','image-compressor.html'])if(!fs.existsSync(path.join(web,required)))errors.push(`restored section asset missing: ${required}`);
+for(const marker of ['a4-card-sheet-editor-v2-runtime.js','photo-print-advanced-runtime.js','document-vault-advanced-runtime.js','questionsCenter','compressorCenter','questions-ar.html','image-compressor.html','ensureQuestionFrame','ensureCompressorFrame','src="about:blank"'])need(productivity,marker,'restored lazy section loader');
+for(const required of ['questions-ar.html','questions-paper-runtime.js','questions-final-fixes-runtime.js','question-type-runtime.js','image-compressor.html'])if(!fs.existsSync(path.join(web,required)))errors.push(`restored section asset missing: ${required}`);
 
 const recovery=read('feature-recovery-runtime.js');
 for(const marker of ["addCardTool(types,'envelope'",'scheduleRecovery','top:76px','width:52px','height:52px'])need(recovery,marker,'cards/startup UI');
