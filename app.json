@@ -2,13 +2,13 @@
   "expo": {
     "name": "مكتبة أبو بسام",
     "slug": "abu-bassam-library",
-    "version": "6.0.0",
+    "version": "6.0.1",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "abu-bassam-library",
     "android": {
       "package": "com.abubassam.librarycamera3",
-      "versionCode": 600,
+      "versionCode": 601,
       "permissions": [
         "CAMERA",
         "INTERNET"
