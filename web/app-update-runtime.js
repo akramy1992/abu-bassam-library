@@ -3,7 +3,7 @@
 if(window.__ABU_APP_UPDATE_V1__)return;
 window.__ABU_APP_UPDATE_V1__=true;
 const ENDPOINT='https://dlbxcqkbmvnrcrbhuttv.supabase.co/functions/v1/app-update';
-const APP_VERSION='5.0.0',BUILD_NUMBER=500,LAST_CHECK_KEY='abuBassamUpdateLastCheckV1';
+const APP_VERSION='6.0.2',BUILD_NUMBER=602,LAST_CHECK_KEY='abuBassamUpdateLastCheckV1';
 let state={busy:false,result:null};
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

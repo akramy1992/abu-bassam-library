@@ -6,7 +6,7 @@ window.__ABU_APP_SECURITY_V1__=true;
 const $=id=>document.getElementById(id);
 const MAIN_USERNAME='akrama1992';
 const MAIN_EMAIL='akrama1992@gmail.com';
-const APP_VERSION='6.0.0';
+const APP_VERSION='6.0.2';
 const MAX_DEVICES=5;
 const DEVICE_ID_KEY='abuBassamLockedDeviceIdV5';
 const DEVICE_NAME_KEY='abuBassamLockedDeviceNameV5';
@@ -166,8 +166,17 @@ window.AbuBassamNativeBackPress=function(){back(true)};
 async function logout(){if(!confirm('تسجيل الخروج من هذا الجهاز؟'))return;try{await cloud()?.client?.auth?.signOut?.({scope:'local'})}catch(e){}currentDevice=null;unlocked=false;showGate('تم تسجيل الخروج.');log('تسجيل خروج')}
 function lockNow(){lock('تم قفل التطبيق يدويًا')}
 
+function confirmNativeLoginGate(){
+  // Do not acknowledge readiness until the actual authentication controls exist.
+  if(!document.getElementById('abuSecurityGate')||!document.getElementById('abuLoginBtn'))return;
+  window.__ABU_BASSAM_SECURITY_READY__=true;
+  try{window.ReactNativeWebView?.postMessage(JSON.stringify({type:'webBootReady',component:'login-gate'}))}catch(_){}
+}
+function reportNativeBootFailure(){
+  try{window.ReactNativeWebView?.postMessage(JSON.stringify({type:'webBootFailure',component:'login-gate'}))}catch(_){}
+}
 async function boot(){
-  buildUi();guardClicks();injectSecurityCard();wrapAppearance();await fetchDeviceInfo();if(!localStorage.getItem(LOCK_MINUTES_KEY))localStorage.setItem(LOCK_MINUTES_KEY,'5');
+  buildUi();confirmNativeLoginGate();guardClicks();injectSecurityCard();wrapAppearance();await fetchDeviceInfo();if(!localStorage.getItem(LOCK_MINUTES_KEY))localStorage.setItem(LOCK_MINUTES_KEY,'5');
   const trust=localTrust();if(offlineAllowed())$('abuOfflineBtn').style.display='block';
   try{await cloud()?.ready?.()}catch(e){}
   const bio=await getBiometricEnabled().catch(()=>false);if(bio&&((cloud()?.isConnected?.()&&navigator.onLine)||offlineAllowed())){setTimeout(unlockWithBiometric,180)}else showGate('أدخل بيانات الدخول لفتح التطبيق.');
@@ -183,5 +192,6 @@ window.AbuBassamSecurity={
   onSessionChanged:async()=>{if(unlocked&&cloud()?.isConnected?.())try{await registerDevice()}catch(e){}},
 };
 
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+const startSecurityBoot=()=>{Promise.resolve().then(boot).catch(reportNativeBootFailure)};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startSecurityBoot);else startSecurityBoot();
 })();
