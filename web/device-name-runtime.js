@@ -1,9 +1,12 @@
 (() => {
   'use strict';
+  // This file exists only in the isolated offline diagnostic build.
+  // The production account/login security implementation is not modified.
+  const OFFLINE_DIAGNOSTIC_ONLY = true;
   const DEVICE_ID_KEY = 'abuBassamLockedDeviceIdV5';
   const DEVICE_NAME_KEY = 'abuBassamLockedDeviceNameV5';
   const DEVICE_CREATED_KEY = 'abuBassamLockedDeviceCreatedV5';
-  const APP_VERSION = '6.0.0';
+  const APP_VERSION = '6.0.2';
   function uuid(){return globalThis.crypto?.randomUUID?.()||`device-${Date.now()}-${Math.random().toString(36).slice(2)}`}
   function platform(){const agent=navigator.userAgent||'';if(/Android/i.test(agent))return'Android';if(/Windows/i.test(agent))return'Windows';if(/iPhone|iPad/i.test(agent))return'iOS';return'جهاز آخر'}
   function normalizeName(value){return String(value||'').trim()||'جهاز المكتبة'}
@@ -50,7 +53,53 @@
   function loadOperationLogCorrections(){loadScript('abuOperationLogCorrectionsRuntime','operation-log-corrections-runtime.js','__ABU_OPERATION_LOG_CORRECTIONS_V2__',()=>setTimeout(loadOperationLogStorageMigration,0))}
   function loadSecurityExtras(){loadScript('abuSecurityExtrasRuntime','security-extras-runtime.js','__ABU_SECURITY_EXTRAS_V1__',()=>{setTimeout(loadPermissionGuard,20);setTimeout(loadLoginThrottleFix,35);setTimeout(loadLoginInputDirection,45);setTimeout(loadPasswordPolicy,55)})}
   function loadSecurity(){const start=()=>loadScript('abuAppSecurityRuntime','app-security-runtime.js','__ABU_APP_SECURITY_V1__',()=>{loadSecurityHardening();setTimeout(loadSecurityExtras,20);setTimeout(loadDeviceReconcile,40);setTimeout(loadAdminPermissions,80);setTimeout(loadPermissionSectionGuards,130);setTimeout(loadCustomerPermissionsHardening,160);setTimeout(loadLoginInputDirection,50);setTimeout(loadPasswordPolicy,90)});if(window.__ABU_SECURITY_BOOTSTRAP_GUARD_V1__)start();else loadSecurityBootstrapGuard(start)}
-  function loadApprovedUi(){loadPasswordPolicy();loadMediaPipePin();loadFeatureRecovery();loadChildTemplates();loadCardModels();loadStandaloneCardModels();loadStrictWorkflow();loadStandaloneFold();loadWifiSyncGuard();loadNotificationCorrections();loadNotificationExcel();loadSecurity();loadFailClosedRuntime(loadBranchVault);loadDocumentVaultHardening();setTimeout(loadBackupCenter,120);setTimeout(loadAccountCenter,180);setTimeout(loadAppUpdate,240);loadDocumentVaultPermissionGuard();loadEncryptedVaultHardening();loadSettingsCorrections();loadOperationLogCorrections();loadCustomerPermissionsHardening();setTimeout(loadAdminPermissions,180);setTimeout(loadPermissionSectionGuards,280);setTimeout(loadCustomerPermissionsHardening,320)}
+  function mountOfflineDiagnostic(){
+    if(!OFFLINE_DIAGNOSTIC_ONLY||document.getElementById('abuDiagnosticTouchInput'))return;
+    const home=document.querySelector('.app');
+    if(!home)return;
+    const banner=document.createElement('section');
+    banner.id='abuDiagnosticBanner';
+    banner.setAttribute('aria-label','واجهة فحص اللمس دون تسجيل دخول');
+    banner.style.cssText='position:relative;z-index:20;background:#fff3cb;color:#42311b;border:3px solid #d58900;padding:12px 10px;direction:rtl;text-align:center;box-sizing:border-box;display:grid;gap:8px';
+    banner.innerHTML='<strong style="font-size:14px">🧪 نسخة فحص مستقلة — بدون تسجيل دخول</strong><small>بيانات تجريبية محلية فقط • الاتصال بالحسابات والخادم معطّل</small><input id="abuDiagnosticTouchInput" type="text" autocomplete="off" placeholder="المس هنا لتجربة لوحة المفاتيح" aria-label="تجربة الكتابة" style="width:100%;font-size:16px;min-height:48px;border:2px solid #9c7117;border-radius:9px;background:white;color:black;text-align:center"><button id="abuDiagnosticTapButton" type="button" style="background:#007e71;color:white;font-size:16px;min-height:48px;border:0;border-radius:10px">اختبار نقر صفحة الويب</button><button id="abuDiagnosticRendererSwitch" type="button" style="background:#60524a;color:white;font-size:14px;min-height:44px;border:0;border-radius:10px">تجربة طريقة عرض بديلة</button><output id="abuDiagnosticTapResult" style="font-size:12px;min-height:16px">لم يتم الضغط بعد</output>';
+    home.insertBefore(banner,home.firstChild);
+    const input=banner.querySelector('#abuDiagnosticTouchInput');
+    const output=banner.querySelector('#abuDiagnosticTapResult');
+    const button=banner.querySelector('#abuDiagnosticTapButton');
+    let count=0;
+    const send=(kind,target)=>{
+      try{window.ReactNativeWebView?.postMessage(JSON.stringify({type:'touchProbeEvent',kind,target}))}catch(_){}
+    };
+    input.addEventListener('focus',()=>{output.textContent='حقل الكتابة استقبل التركيز ✅';send('focus','abuDiagnosticTouchInput')});
+    input.addEventListener('input',()=>{output.textContent='الكتابة تعمل ✅';send('input','abuDiagnosticTouchInput')});
+    button.addEventListener('click',()=>{count+=1;output.textContent='النقر يعمل ✅ ('+count+')';send('click','abuDiagnosticTapButton')});
+    banner.querySelector('#abuDiagnosticRendererSwitch')?.addEventListener('click',()=>{output.textContent='تبديل عرض WebView ثم إعادة فتح الواجهة…';send('touchRendererToggle','abuDiagnosticRendererSwitch')});
+    window.__ABU_DIAGNOSTIC_READY__=true;
+    try{window.ReactNativeWebView?.postMessage(JSON.stringify({type:'webBootReady',component:'diagnostic-shell'}))}catch(_){}
+  }
+  function loadApprovedUi(){
+    if(OFFLINE_DIAGNOSTIC_ONLY){
+      // This device is NOT an owner account. Local-only test controls are
+      // permitted in a separate network-denied APK; real accounts, vaults,
+      // recovery, device registry and cloud operations remain unavailable.
+      const localUiKeys=new Set([
+        'imageImport','imageExport','exportOutsideApp','printGeneral','printCards',
+        'printA4','printCardDirect','pdfCreate','pdfSave','settingsPrinting',
+        'questionsView','questionsEdit','questionsCreate','compressUse'
+      ]);
+      window.AbuBassamPermissions=Object.freeze({
+        __abuOfflineDiagnosticOnly:true,items:[],
+        can(key){return /^cards[A-Z]/.test(String(key))||localUiKeys.has(String(key))}
+      });
+      // No account gate, password or biometric setup, owner privilege, device
+      // registry, recovery, synchronisation or cloud management in this build.
+      loadFeatureRecovery();loadChildTemplates();loadCardModels();loadStandaloneCardModels();
+      loadStrictWorkflow();loadStandaloneFold();loadNotificationCorrections();loadNotificationExcel();
+      loadFailClosedRuntime(loadBranchVault);loadDocumentVaultHardening();
+      loadEncryptedVaultHardening();loadSettingsCorrections();loadOperationLogCorrections();
+      mountOfflineDiagnostic();
+      return;
+    }loadPasswordPolicy();loadMediaPipePin();loadFeatureRecovery();loadChildTemplates();loadCardModels();loadStandaloneCardModels();loadStrictWorkflow();loadStandaloneFold();loadWifiSyncGuard();loadNotificationCorrections();loadNotificationExcel();loadSecurity();loadFailClosedRuntime(loadBranchVault);loadDocumentVaultHardening();setTimeout(loadBackupCenter,120);setTimeout(loadAccountCenter,180);setTimeout(loadAppUpdate,240);loadDocumentVaultPermissionGuard();loadEncryptedVaultHardening();loadSettingsCorrections();loadOperationLogCorrections();loadCustomerPermissionsHardening();setTimeout(loadAdminPermissions,180);setTimeout(loadPermissionSectionGuards,280);setTimeout(loadCustomerPermissionsHardening,320)}
   installSplashWatchdog();
   window.AbuBassamDevices={get:current,name:deviceName,ensure:ensureIdentity,heartbeat,list,version:APP_VERSION};window.AbuBassamDeviceName=deviceName;
   window.addEventListener('DOMContentLoaded',()=>{ensureIdentity();loadApprovedUi();signalBootReady();setTimeout(heartbeat,800);setInterval(()=>{if(document.visibilityState!=='hidden')heartbeat()},120000)});

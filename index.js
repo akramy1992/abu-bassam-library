@@ -23,11 +23,13 @@ import * as SecureStore from 'expo-secure-store';
 import * as Sharing from 'expo-sharing';
 import { WebView } from 'react-native-webview';
 
+// Dedicated, independently installed offline-only diagnostic application.
 const APP_URL = 'file:///android_asset/library/index.html';
-const APP_VERSION = '6.0.0';
-const BUILD_NUMBER = '600';
+const IS_OFFLINE_DIAGNOSTIC = true;
+const APP_VERSION = '6.0.2';
+const BUILD_NUMBER = '602';
 const PRIVACY_CAPTURE_KEY = 'abu-bassam-private-screen';
-const STARTUP_WATCHDOG_MS = 9000;
+const STARTUP_WATCHDOG_MS = 25000;
 const BARCODE_TYPES = [
   'qr', 'ean13', 'ean8', 'code128', 'code39', 'code93', 'upc_a', 'upc_e',
   'datamatrix', 'pdf417', 'aztec', 'codabar', 'itf14',
@@ -40,6 +42,7 @@ const ANDROID_BRIDGE = `
     try { window.ReactNativeWebView.postMessage(JSON.stringify(Object.assign({ type: type }, payload || {}))); }
     catch (error) {}
   }
+  window.__ABU_BASSAM_DIAGNOSTIC_BUILD__ = true;
   window.Android = {
     saveBase64: function (name, mime, data) { send('saveBase64', { name: name, mime: mime, data: data }); },
     saveToGallery: function (name, mime, data) { send('saveToGallery', { name: name, mime: mime, data: data }); },
@@ -56,8 +59,33 @@ const ANDROID_BRIDGE = `
     security: function (action, requestId, payload) { send('security', { action: action, requestId: requestId, payload: payload || {} }); },
     exitApp: function () { send('exitApp'); }
   };
+  // Diagnostic is opt-in: report only control identifiers, never credentials.
+  window.__ABU_BASSAM_TOUCH_PROBE__ = false;
+  window.AbuBassamNativeTouchProbe = function () {
+    window.__ABU_BASSAM_TOUCH_PROBE__ = true;
+    var p = document.getElementById('abuDiagnosticTouchInput');
+    if (!p) { send('touchProbeResult', { issue: 'NO_DIAGNOSTIC_INPUT' }); return; }
+    var r = p.getBoundingClientRect();
+    var top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    send('touchProbeResult', {
+      target: String(top && top.id || top && top.tagName || 'none').slice(0, 70),
+      expected: 'abuDiagnosticTouchInput',
+      disabled: !!p.disabled,
+      pointer: getComputedStyle(p).pointerEvents
+    });
+  };
+  ['pointerdown', 'touchstart', 'click'].forEach(function (kind) {
+    document.addEventListener(kind, function (event) {
+      if (!window.__ABU_BASSAM_TOUCH_PROBE__) return;
+      if (!document.body || !document.body.contains(event.target)) return;
+      send('touchProbeEvent', {
+        kind: kind,
+        target: String(event.target && event.target.id || event.target && event.target.tagName || 'unknown').slice(0, 70)
+      });
+    }, true);
+  });
   window.__ABU_BASSAM_NATIVE_CAMERA__ = true;
-  window.__ABU_BASSAM_NATIVE_SECURITY__ = true;
+  window.__ABU_BASSAM_NATIVE_SECURITY__ = false;
 })();
 true;
 `;
@@ -117,7 +145,10 @@ function App() {
   const [cameraFrameKind, setCameraFrameKind] = useState('paper');
   const [webReady, setWebReady] = useState(false);
   const [webInstanceKey, setWebInstanceKey] = useState(0);
-  const [startupAttempts, setStartupAttempts] = useState(0);
+  const [startupError, setStartupError] = useState(null);
+  const rendererRestarts = useRef(0);
+  // Diagnostic test controls belong to the scrollable web page only.
+  const [useSoftwareWebView, setUseSoftwareWebView] = useState(false);
 
   const inject = useCallback((functionName, payload) => {
     const json = JSON.stringify(payload).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
@@ -130,13 +161,25 @@ function App() {
   const closeCamera = useCallback(() => {
     setCameraMode(null); setCameraReady(false); setCameraBusy(false); setBarcodeLocked(false); setTorch(false); setCameraFacing('back'); setCameraFrameKind('paper');
   }, []);
-  const recoverWebRenderer = useCallback((didCrash = false) => {
+  const retryStartup = useCallback(() => {
     closeCamera();
     setWebReady(false);
-    setStartupAttempts(0);
+    setStartupError(null);
     setWebInstanceKey((value) => value + 1);
-    if (didCrash) Alert.alert('تمت استعادة التطبيق', 'تعطل محرك العرض الداخلي وتمت إعادة إنشائه تلقائيًا.');
   }, [closeCamera]);
+  const recoverWebRenderer = useCallback(() => {
+    if (rendererRestarts.current >= 1) {
+      setWebReady(false);
+      setStartupError({ code: 'RENDERER_TERMINATED', message: 'تعطل محرك عرض الواجهة أكثر من مرة. لم نعد تشغيله مجددًا لحماية بياناتك.' });
+      return;
+    }
+    rendererRestarts.current += 1;
+    retryStartup();
+  }, [retryStartup]);
+  const retryStartupManually = useCallback(() => {
+    rendererRestarts.current = 0;
+    retryStartup();
+  }, [retryStartup]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -156,18 +199,13 @@ function App() {
   }, [inject, webReady]);
 
   useEffect(() => {
-    if (webReady) return undefined;
+    // HTML load or timeout must never expose content without a mounted login gate.
+    if (webReady || startupError) return undefined;
     const timer = setTimeout(() => {
-      if (startupAttempts < 1) {
-        setStartupAttempts((value) => value + 1);
-        webRef.current?.reload();
-        return;
-      }
-      setWebReady(true);
-      Alert.alert('تعذر إكمال بدء التشغيل', 'لم تفتح الواجهة ضمن الوقت المتوقع. أعد تشغيل التطبيق، وإذا تكررت المشكلة افحص ملفات التطبيق.');
+      setStartupError({ code: 'DIAGNOSTIC_TIMEOUT', message: 'لم تؤكد واجهة الفحص جاهزيتها. جرّب إعادة المحاولة دون حذف بيانات التطبيق.' });
     }, STARTUP_WATCHDOG_MS);
     return () => clearTimeout(timer);
-  }, [startupAttempts, webReady]);
+  }, [webInstanceKey, webReady, startupError]);
 
   const openCamera = useCallback(async (mode, frameKind = 'paper') => {
     try {
@@ -231,21 +269,39 @@ function App() {
     try {
       const imagePages = typeof pages === 'string' ? JSON.parse(pages) : pages;
       if (!Array.isArray(imagePages) || !imagePages.length) throw new Error('لا توجد صور للحفظ');
-      const finalMime = String(mime || 'image/jpeg');
-      if (!finalMime.startsWith('image/')) throw new Error('صيغة الصور غير مدعومة');
+      if (imagePages.length > 20) throw new Error('الحد الأقصى للحفظ دفعة واحدة هو 20 صورة');
+      const fallbackMime = String(mime || 'image/jpeg');
+      if (!/^image\/(?:jpeg|png|webp)$/i.test(fallbackMime)) throw new Error('صيغة الصور غير مدعومة');
+      // Validate the entire batch before creating any files, avoiding partial writes from malformed input.
+      const prepared = imagePages.map((page, index) => {
+        if (typeof page !== 'string' || page.length > 42_000_000) throw new Error('حجم الصورة غير مدعوم');
+        const parsed = splitDataUrl(page);
+        const itemMime = String(parsed.mime || fallbackMime).toLowerCase();
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(itemMime)) throw new Error('صيغة صورة غير مدعومة');
+        const encodedNameMatch = page.slice(0, page.indexOf(';base64,')).match(/;name=([^;]+)/i);
+        let requestedName = '';
+        if (encodedNameMatch) {
+          try { requestedName = decodeURIComponent(encodedNameMatch[1]); } catch (_) { throw new Error('اسم الصورة غير صالح'); }
+        }
+        const fallbackName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}`;
+        const displayName = safeName(requestedName || fallbackName).replace(/\.(?:jpe?g|png|webp)$/i, '');
+        return { parsed, itemMime, displayName };
+      });
       const initialUri = FileSystem.StorageAccessFramework.getUriForDirectoryInRoot('Pictures');
       const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(initialUri);
       if (!permission.granted) return;
       let saved = 0;
-      for (let index = 0; index < imagePages.length; index += 1) {
-        const parsed = splitDataUrl(imagePages[index]);
-        const displayName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}`;
-        const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, displayName, finalMime || parsed.mime);
-        await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, parsed.base64, { encoding: FileSystem.EncodingType.Base64 });
-        saved += 1;
+      try {
+        for (const item of prepared) {
+          const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, item.displayName, item.itemMime);
+          await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, item.parsed.base64, { encoding: FileSystem.EncodingType.Base64 });
+          saved += 1;
+        }
+      } catch (error) {
+        throw new Error(`حُفظت ${saved} صورة قبل حدوث الخطأ: ${String(error?.message || error)}`);
       }
-      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صفحة داخل مجلد الصور الذي اخترته.`);
-    } catch (error) { Alert.alert('تعذر حفظ الصفحات', String(error?.message || error)); }
+      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صورة داخل مجلد الصور الذي اخترته.`);
+    } catch (error) { Alert.alert('تعذر حفظ الصور', String(error?.message || error)); }
   }, []);
 
   const printPages = useCallback(async ({ pages, paper }) => {
@@ -311,7 +367,8 @@ function App() {
     const url = String(request?.url || '').trim();
     if (!url || url === 'about:blank' || url.startsWith('file:///android_asset/library/')) return true;
     if (/^(https:|tel:|mailto:|tg:|whatsapp:)/i.test(url)) {
-      openExternal({ url });
+      // Isolated offline build must not open customer/account destinations.
+      if (!IS_OFFLINE_DIAGNOSTIC) openExternal({ url });
       return false;
     }
     return false;
@@ -371,6 +428,27 @@ function App() {
 
   const onWebMessage = useCallback(async (event) => {
     let message; try { message = JSON.parse(event.nativeEvent.data); } catch (_) { return; }
+    if (IS_OFFLINE_DIAGNOSTIC && message.type === 'security')
+      return replySecurity(message.requestId, false, null, 'DIAGNOSTIC_SECURITY_DISABLED');
+    if (IS_OFFLINE_DIAGNOSTIC && message.type === 'openExternal')
+      return Alert.alert('نسخة فحص محلية', 'الروابط الخارجية معطلة في هذه النسخة التجريبية.');
+    if (message.type === 'touchRendererToggle'){
+      setUseSoftwareWebView((value)=>!value);
+      setWebReady(false);setStartupError(null);setWebInstanceKey((value)=>value+1);
+      return;
+    }
+    if(message.type === 'touchProbeResult'||message.type === 'touchProbeEvent')return;
+    // Isolated diagnostic page acknowledgment, not a login bypass.
+    if (message.type === 'webBootReady' && message.component === 'diagnostic-shell') {
+      setStartupError(null);
+      setWebReady(true);
+      return;
+    }
+    if (message.type === 'webBootFailure') {
+      setWebReady(false);
+      setStartupError({ code: 'DIAGNOSTIC_SHELL_ERROR', message: 'تعذر تهيئة واجهة الفحص المحلية. أعد المحاولة دون مسح بيانات التطبيقات.' });
+      return;
+    }
     if (message.type === 'openCamera') return openCamera(message.mode, message.frameKind);
     if (message.type === 'saveBase64') return saveBase64(message);
     if (message.type === 'saveToGallery') return saveToGallery(message);
@@ -394,14 +472,34 @@ function App() {
       <StatusBar barStyle={cameraMode ? 'light-content' : 'dark-content'} backgroundColor={cameraMode ? '#000000' : '#fffaf3'} />
       <WebView
         key={webInstanceKey} ref={webRef} source={{ uri: APP_URL }} style={styles.webView} originWhitelist={['file://*','about:*']} javaScriptEnabled domStorageEnabled
-        allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs mixedContentMode="never"
+        androidLayerType={useSoftwareWebView ? 'software' : 'hardware'}
+        allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs={false} mixedContentMode="never"
         setSupportMultipleWindows={false} mediaPlaybackRequiresUserAction={false}
-        injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE} onMessage={onWebMessage} onShouldStartLoadWithRequest={onShouldStartLoadWithRequest} onLoadEnd={() => setWebReady(true)}
-        onRenderProcessGone={(event) => recoverWebRenderer(!!event.nativeEvent?.didCrash)}
-        onContentProcessDidTerminate={() => recoverWebRenderer(true)}
-        onError={() => recoverWebRenderer(false)}
+        injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE} onMessage={onWebMessage} onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        onLoadEnd={() => webRef.current?.injectJavaScript(`(function(){try{if(window.__ABU_DIAGNOSTIC_READY__ && document.getElementById('abuDiagnosticTouchInput'))window.ReactNativeWebView.postMessage(JSON.stringify({type:'webBootReady',component:'diagnostic-shell'}));}catch(e){}})();true;`)}
+        onRenderProcessGone={recoverWebRenderer}
+        onContentProcessDidTerminate={recoverWebRenderer}
+        onError={(event) => {
+          const code = String(event.nativeEvent?.code ?? 'unknown').slice(0, 30);
+          setWebReady(false);
+          setStartupError({ code: 'WEBVIEW_LOAD_' + code, message: 'فشل فتح ملف واجهة التطبيق المحلي. قد تكون هناك مشكلة في محرك WebView أو في ملفات التثبيت.' });
+        }}
       />
-      {!webReady && <View style={styles.loading}><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري فتح مكتبة أبو بسام…</Text></View>}
+      {!webReady && <View style={styles.loading}>
+        {startupError ? (
+          <View style={styles.startupErrorCard}>
+            <Text style={styles.startupErrorTitle}>تعذر فتح مكتبة أبو بسام</Text>
+            <Text style={styles.loadingText}>{startupError.message}</Text>
+            <Text selectable style={styles.startupErrorCode}>رمز التشخيص: {startupError.code}</Text>
+            <TouchableOpacity style={styles.startupRetry} onPress={retryStartupManually} accessibilityRole="button" accessibilityLabel="إعادة محاولة فتح التطبيق">
+              <Text style={styles.startupRetryText}>إعادة المحاولة</Text>
+            </TouchableOpacity>
+            <Text style={styles.startupHelp}>لا تمسح بيانات التطبيق أو تعِد تثبيته قبل حفظ نسخة احتياطية.</Text>
+          </View>
+        ) : (
+          <><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري فتح واجهة الفحص دون تسجيل دخول…</Text></>
+        )}
+      </View>}
       {cameraMode && (
         <View style={styles.cameraOverlay}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cameraFacing} enableTorch={cameraFacing === 'back' && torch}
@@ -430,7 +528,13 @@ function App() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fffaf3' }, webView: { flex: 1, backgroundColor: '#fffaf3' },
   loading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fffaf3' },
-  loadingText: { color: '#5b4438', fontSize: 15, fontWeight: '700', marginTop: 14 },
+  loadingText: { color: '#5b4438', fontSize: 15, fontWeight: '700', marginTop: 14, textAlign: 'center' },
+  startupErrorCard: { width: '88%', maxWidth: 420, padding: 22, borderRadius: 18, backgroundColor: '#ffffff', alignItems: 'center', borderWidth: 1, borderColor: '#e6d5ca' },
+  startupErrorTitle: { color: '#9d3030', fontSize: 19, fontWeight: '800', textAlign: 'center' },
+  startupErrorCode: { marginTop: 14, fontSize: 12, color: '#60534b', textAlign: 'center' },
+  startupRetry: { marginTop: 22, backgroundColor: '#087f72', borderRadius: 12, paddingHorizontal: 26, paddingVertical: 14 },
+  startupRetryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  startupHelp: { marginTop: 16, fontSize: 11, color: '#76533e', textAlign: 'center' },
   cameraOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100, backgroundColor: '#000' },
   cameraShade: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 38 },
   cameraHeader: { width: '100%', paddingTop: 14, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
