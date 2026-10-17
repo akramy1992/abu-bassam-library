@@ -32,9 +32,25 @@ let native=fs.readFileSync(path.join(root,nativeFile),'utf8');
 if(!/const APP_VERSION = '[^']+';/.test(native)||!/const BUILD_NUMBER = '[^']+';/.test(native))fail('index.js release identity constants were not found.');
 native=native.replace(/const APP_VERSION = '[^']+';/,`const APP_VERSION = '${nextVersion}';`).replace(/const BUILD_NUMBER = '[^']+';/,`const BUILD_NUMBER = '${nextCode}';`);
 
+// Keep every embedded account and update runtime in sync during future releases.
+// Validate all markers before any file is written.
+const webVersionFiles=['web/account-center-runtime.js','web/account-recovery-hardening-runtime.js','web/app-update-runtime.js'];
+const webUpdates=webVersionFiles.map(filename=>{
+  const source=fs.readFileSync(path.join(root,filename),'utf8');
+  const re=filename.endsWith('app-update-runtime.js')
+    ?/APP_VERSION='[^']+',BUILD_NUMBER=\\d+/
+    :/APP='[^']+'/;
+  if(!re.test(source))fail('Runtime version marker missing: '+filename);
+  const value=filename.endsWith('app-update-runtime.js')
+    ?`APP_VERSION='${nextVersion}',BUILD_NUMBER=${nextCode}`
+    :`APP='${nextVersion}'`;
+  return [filename,source.replace(re,value)];
+});
+
 writeJson(appFile,app);
 writeJson(packageFile,pkg);
 writeJson(lockFile,lock);
 fs.writeFileSync(path.join(root,nativeFile),native);
+for(const [filename,content] of webUpdates)fs.writeFileSync(path.join(root,filename),content);
 console.log(`Release prepared: ${currentVersion} (${currentCode}) -> ${nextVersion} (${nextCode}).`);
 console.log('Next: npm run check:web, review the diff, commit the version bump, then run the production Android workflow with the release signing key.');
