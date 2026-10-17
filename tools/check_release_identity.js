@@ -6,7 +6,12 @@ const lock=JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'),'utf8'
 const native=fs.readFileSync(path.join(root,'index.js'),'utf8');
 const errors=[];
 const version=String(app.version||'');
-const expectedPackage='com.abubassam.librarycamera3';
+// Explicit opt-in only in the one-off sandbox workflow; production checks
+// continue to require the original package and production-signing identity.
+const offlineDiagnostic=process.env.ABU_BASSAM_DIAGNOSTIC_BUILD==='1';
+const expectedPackage=offlineDiagnostic?'com.abubassam.librarycamera3.diagnostic':'com.abubassam.librarycamera3';
+if(offlineDiagnostic && (!app.android?.blockedPermissions?.includes('android.permission.INTERNET')||app.android?.permissions?.includes('INTERNET')))errors.push('diagnostic must have no INTERNET permission');
+if(offlineDiagnostic && app.scheme!=='abu-bassam-library-diagnostic')errors.push('diagnostic scheme must be isolated');
 const pinnedFile=path.join(root,'config','release-signing-certificate.sha256');
 const signingMigration=path.join(root,'supabase','migrations','202609270003_release_signing_baseline.sql');
 if(pkg.version!==version)errors.push(`package.json version ${pkg.version} != app.json ${version}`);
