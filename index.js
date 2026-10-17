@@ -231,21 +231,39 @@ function App() {
     try {
       const imagePages = typeof pages === 'string' ? JSON.parse(pages) : pages;
       if (!Array.isArray(imagePages) || !imagePages.length) throw new Error('لا توجد صور للحفظ');
-      const finalMime = String(mime || 'image/jpeg');
-      if (!finalMime.startsWith('image/')) throw new Error('صيغة الصور غير مدعومة');
+      if (imagePages.length > 20) throw new Error('الحد الأقصى للحفظ دفعة واحدة هو 20 صورة');
+      const fallbackMime = String(mime || 'image/jpeg');
+      if (!/^image\/(?:jpeg|png|webp)$/i.test(fallbackMime)) throw new Error('صيغة الصور غير مدعومة');
+      // Validate the entire batch before creating any files, avoiding partial writes from malformed input.
+      const prepared = imagePages.map((page, index) => {
+        if (typeof page !== 'string' || page.length > 42_000_000) throw new Error('حجم الصورة غير مدعوم');
+        const parsed = splitDataUrl(page);
+        const itemMime = String(parsed.mime || fallbackMime).toLowerCase();
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(itemMime)) throw new Error('صيغة صورة غير مدعومة');
+        const encodedNameMatch = page.slice(0, page.indexOf(';base64,')).match(/;name=([^;]+)/i);
+        let requestedName = '';
+        if (encodedNameMatch) {
+          try { requestedName = decodeURIComponent(encodedNameMatch[1]); } catch (_) { throw new Error('اسم الصورة غير صالح'); }
+        }
+        const fallbackName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}`;
+        const displayName = safeName(requestedName || fallbackName).replace(/\.(?:jpe?g|png|webp)$/i, '');
+        return { parsed, itemMime, displayName };
+      });
       const initialUri = FileSystem.StorageAccessFramework.getUriForDirectoryInRoot('Pictures');
       const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(initialUri);
       if (!permission.granted) return;
       let saved = 0;
-      for (let index = 0; index < imagePages.length; index += 1) {
-        const parsed = splitDataUrl(imagePages[index]);
-        const displayName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}`;
-        const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, displayName, finalMime || parsed.mime);
-        await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, parsed.base64, { encoding: FileSystem.EncodingType.Base64 });
-        saved += 1;
+      try {
+        for (const item of prepared) {
+          const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, item.displayName, item.itemMime);
+          await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, item.parsed.base64, { encoding: FileSystem.EncodingType.Base64 });
+          saved += 1;
+        }
+      } catch (error) {
+        throw new Error(`حُفظت ${saved} صورة قبل حدوث الخطأ: ${String(error?.message || error)}`);
       }
-      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صفحة داخل مجلد الصور الذي اخترته.`);
-    } catch (error) { Alert.alert('تعذر حفظ الصفحات', String(error?.message || error)); }
+      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صورة داخل مجلد الصور الذي اخترته.`);
+    } catch (error) { Alert.alert('تعذر حفظ الصور', String(error?.message || error)); }
   }, []);
 
   const printPages = useCallback(async ({ pages, paper }) => {

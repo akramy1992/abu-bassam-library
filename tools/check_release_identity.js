@@ -14,6 +14,22 @@ if(lock.version!==version||lock.packages?.['']?.version!==version)errors.push('p
 const vm=native.match(/const APP_VERSION = '([^']+)';/),bm=native.match(/const BUILD_NUMBER = '([^']+)';/);
 if(!vm||vm[1]!==version)errors.push('index.js APP_VERSION does not match app.json');
 if(!bm||Number(bm[1])!==Number(app.android?.versionCode))errors.push('index.js BUILD_NUMBER does not match android.versionCode');
+
+const synchronizedRuntimes=[
+  ['web/account-center-runtime.js', /APP='([^']+)'/],
+  ['web/account-recovery-hardening-runtime.js', /APP='([^']+)'/],
+  ['web/app-update-runtime.js', /APP_VERSION='([^']+)'/]
+];
+for(const [filename,pattern] of synchronizedRuntimes){
+  const match=fs.readFileSync(path.join(root,filename),'utf8').match(pattern);
+  if(!match||match[1]!==version)errors.push(filename+' is not synchronized with app version '+version);
+}
+const updateRuntime=fs.readFileSync(path.join(root,'web/app-update-runtime.js'),'utf8');
+const updateBuild=updateRuntime.match(/BUILD_NUMBER=(\d+)/);
+if(!updateBuild||Number(updateBuild[1])!==Number(app.android?.versionCode))
+  errors.push('app-update-runtime.js build number differs from app.json');
+if(pkg.main!=='index-auth.js'||!fs.existsSync(path.join(root,'index-auth.js')))
+  errors.push('OAuth/recovery app entry missing or not selected in package.json');
 if(Number(app.android?.versionCode)<=432)errors.push('android.versionCode must stay above retired build 432');
 if(!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version))errors.push('invalid semantic app version');
 if(app.android?.package!==expectedPackage)errors.push(`Android package must remain ${expectedPackage} for update continuity`);
