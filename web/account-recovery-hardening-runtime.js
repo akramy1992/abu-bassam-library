@@ -10,7 +10,7 @@ const DEVICE_ID_KEY='abuBassamLockedDeviceIdV5';
 const DEVICE_NAME_KEY='abuBassamLockedDeviceNameV5';
 const DEVICE_CREATED_KEY='abuBassamLockedDeviceCreatedV5';
 const VAULT_SCOPE_KEY='abuBassamVaultLocalScopeV1';
-const APP='6.0.0';
+const APP='6.0.1';
 const pending=new Map();let seq=0,bridgeInstalled=false,googleBusy=false,recoveryBusy=false;const $=id=>document.getElementById(id);
 function setMsg(text,bad=false){const e=$('acctMsg');if(e){e.textContent=String(text||'');e.style.color=bad?'#a52e3b':'#087f72'}}
 function installBridge(){if(bridgeInstalled)return;bridgeInstalled=true;const previous=window.AbuBassamNativeSecurityResult;window.AbuBassamNativeSecurityResult=function(message){const data=typeof message==='string'?(()=>{try{return JSON.parse(message)}catch(_){return{}}})():message||{},slot=pending.get(data.requestId);if(slot){clearTimeout(slot.timer);pending.delete(data.requestId);data.ok===false?slot.reject(new Error(data.error||'تعذر الوصول إلى التخزين الآمن')):slot.resolve(data.value);return}if(typeof previous==='function')return previous(message)}}
