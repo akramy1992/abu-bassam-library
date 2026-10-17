@@ -22,4 +22,12 @@ assert.ok(security.includes("document.getElementById('abuSecurityGate')")&&secur
 assert.ok(security.includes('confirmNativeLoginGate();guardClicks();'),'ready must happen only after UI is mounted');
 assert.ok(security.includes('startSecurityBoot')&&security.includes('reportNativeBootFailure'),'security initialization failure not reported');
 assert.ok(device.includes("type:'webBootReady'"),'legacy early event must be excluded by scoped native handler');
-console.log('Android startup: only login-gate readiness, fail-closed timeout, bounded renderer recovery, local assets and retry diagnostics validated (static).');
+// Non-intercepting native control separates broken WebView touch from Android touch.
+assert.ok(native.includes('pointerEvents="box-none"'),'diagnostic layer must not consume WebView touches outside controls');
+assert.ok(native.includes("androidLayerType={useSoftwareWebView ? 'software' : 'hardware'}"),'alternative renderer A/B test required');
+assert.ok(native.includes("message.type === 'touchProbeEvent'"),'DOM pointer/touch response missing');
+assert.ok(native.includes("message.type === 'touchProbeResult'"),'WebView DOM hit test missing');
+assert.ok(native.includes("window.__ABU_BASSAM_TOUCH_PROBE__"),'missing opt-in probe');
+assert.ok(native.includes('retryStartupManually();'),'renderer fallback must reinitialize WebView');
+assert.ok(!native.includes("event.preventDefault();")&&!native.includes("event.stopPropagation();"),'touch diagnostics must not block input');
+console.log('Android startup and native/WebView touch diagnostics: static checks passed; real phone taps still require field verification.');
