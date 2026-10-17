@@ -93,7 +93,44 @@ function residence(){let block=$('natResidenceBlock');if(block)block.scrollIntoV
 function attachPreviewZoom(){let pv=$('preview-canvas');if(pv){pv.style.cursor='zoom-in';pv.addEventListener('click',()=>{if(window.pageCanvases&&pageCanvases.length){let src=pageCanvases[window.currentPage||0].toDataURL('image/png');zoomOpen(src)}})}}
 let zoomSource='',z={scale:1,x:0,y:0,lastD:0,lastX:0,lastY:0};function zoomOpen(src){zoomSource=src;let o=$('natZoom'),im=$('natZoomImg');im.src=src;z={scale:1,x:0,y:0,lastD:0,lastX:0,lastY:0};o.classList.add('show');setTimeout(zoomApply,20)}function zoomApply(){let im=$('natZoomImg'),s=z.scale;im.style.width=Math.min(innerWidth*.92,900)*s+'px';im.style.height='auto';im.style.transform=`translate(calc(-50% + ${z.x}px),calc(-50% + ${z.y}px))`}
 function zoomClose(){$('natZoom').classList.remove('show')}
-function setupZoomTouch(){let o=$('natZoom');if(!o)return;o.addEventListener('touchstart',e=>{if(e.touches.length===2){z.lastD=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)}else if(e.touches.length===1){z.lastX=e.touches[0].clientX;z.lastY=e.touches[0].clientY}},{passive:false});o.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===2){let d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(z.lastD){z.scale=Math.max(.7,Math.min(6,z.scale*d/z.lastD));zoomApply()}z.lastD=d}else if(e.touches.length===1){z.x+=e.touches[0].clientX-z.lastX;z.y+=e.touches[0].clientY-z.lastY;z.lastX=e.touches[0].clientX;z.lastY=e.touches[0].clientY;zoomApply()}},{passive:false});o.addEventListener('touchend',()=>z.lastD=0)}
+function setupZoomTouch(){
+  const panel=$('natZoom');if(!panel)return;
+  const active=new Map();
+  panel.style.touchAction='none';
+  const distance=()=>{
+    const points=[...active.values()];
+    return Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y);
+  };
+  panel.addEventListener('pointerdown',event=>{
+    if(event.target?.closest?.('button,a,input,select,textarea'))return;
+    active.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    if(active.size===2)z.lastD=distance();
+    try{panel.setPointerCapture?.(event.pointerId)}catch(_){}
+  });
+  panel.addEventListener('pointermove',event=>{
+    const previous=active.get(event.pointerId);
+    if(!previous)return;
+    const next={x:event.clientX,y:event.clientY};
+    active.set(event.pointerId,next);
+    if(active.size===2){
+      const d=distance();
+      if(z.lastD>0&&d>0){z.scale=Math.max(.7,Math.min(6,z.scale*d/z.lastD));zoomApply()}
+      z.lastD=d;
+    }else if(active.size===1){
+      z.x+=next.x-previous.x;
+      z.y+=next.y-previous.y;
+      zoomApply();
+    }
+  });
+  const release=event=>{
+    if(!active.delete(event.pointerId))return;
+    z.lastD=active.size===2?distance():0;
+    try{panel.releasePointerCapture?.(event.pointerId)}catch(_){}
+  };
+  panel.addEventListener('pointerup',release);
+  panel.addEventListener('pointercancel',release);
+  panel.addEventListener('lostpointercapture',release);
+}
 function zoomPaper(){let c=$('natCanvas');if(c&&c.style.display!=='none')zoomOpen(c.toDataURL('image/png'))}
 function zoomGallery(){if(!zoomSource)return;saveImage('Abu_Bassam_Preview_'+Date.now()+'.png','image/png',zoomSource);logOperation('gallery','حفظ المعاينة في المعرض')}
 async function zoomPdf(){if(!zoomSource)return;try{saveData('Abu_Bassam_Preview_'+Date.now()+'.pdf','application/pdf',await pdfFromImage(zoomSource));logOperation('pdf','حفظ المعاينة PDF')}catch(e){alert(e.message||'تعذر إنشاء PDF')}}
