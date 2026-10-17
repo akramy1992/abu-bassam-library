@@ -2,6 +2,10 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const native=read('index.js'),security=read('web/app-security-runtime.js'),device=read('web/device-name-runtime.js'),html=read('web/index.html');
+// Parse real JSX/JavaScript before Gradle starts; string checks alone cannot detect broken JSX closures.
+const parser=require('@babel/parser');
+parser.parse(native,{sourceType:'module',plugins:['jsx']});
+parser.parse(security,{sourceType:'script'});
 for(const file of ['web/index.html','web/app-security-runtime.js','web/security-bootstrap-guard-runtime.js','web/device-name-runtime.js']){
   assert.ok(fs.statSync(path.join(root,file)).size>100,file+' missing or empty');
 }
