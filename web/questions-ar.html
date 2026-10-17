@@ -16,7 +16,7 @@
 
         /* هذا الكود يمنع ميزة "السحب للأسفل لإعادة التحميل" في متصفحات الموبايل نهائياً */
         html, body {
-            overscroll-behavior-y: none; 
+            overscroll-behavior-y: auto; /* Let the main app scroll past the editor in Android WebView. */ 
         }
 
         body {
@@ -686,7 +686,30 @@
             if (container) new MutationObserver(scheduleQuestionDraft).observe(container, { childList: true, subtree: true, characterData: true, attributes: true });
             hostMessage({ type: 'abuQuestionReady', language: 'ar', message: restored ? 'تمت استعادة مسودة الأسئلة العربية ✓' : 'نموذج الأسئلة العربية جاهز' });
         });
-        window.addEventListener('message', event => { if (event.data && event.data.type === 'abuBassamTabVisible') setTimeout(fitToScreen, 30); });
+        // The editor lives in a WebView iframe. Match the frame to the rendered
+        // Arabic pages so gestures scroll the parent app instead of being trapped
+        // in a fixed 900px inner scrolling surface.
+        let hostHeightTimer=0;
+        function announceEditorHeight(){
+            clearTimeout(hostHeightTimer);
+            hostHeightTimer=setTimeout(()=>{
+                const pages=document.getElementById('pages-container');
+                if(!pages)return;
+                const rect=pages.getBoundingClientRect();
+                const height=Math.ceil(Math.max(document.body.scrollHeight,rect.bottom+window.scrollY+32,760));
+                hostMessage({type:'abuQuestionFrameHeight',language:'ar',height});
+            },100);
+        }
+        window.addEventListener('load',announceEditorHeight);
+        window.addEventListener('resize',announceEditorHeight);
+        document.addEventListener('input',announceEditorHeight,true);
+        const pageHost=document.getElementById('pages-container');
+        if(pageHost)new MutationObserver(announceEditorHeight).observe(pageHost,{childList:true,subtree:true});
+        window.addEventListener('message',event=>{
+            if(event.data && event.data.type==='abuBassamTabVisible'){
+                setTimeout(()=>{fitToScreen();announceEditorHeight()},30);
+            }
+        });
     </script>
 </body>
 </html>
