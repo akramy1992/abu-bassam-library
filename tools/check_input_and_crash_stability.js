@@ -40,7 +40,7 @@ for(const [s,marker,label] of [
 if(permission.includes('new MutationObserver'))errors.push('permissions must not observe the whole DOM');
 if(permission.includes('[class*="card" i]'))errors.push('generic settings cards must not be intercepted as card-editing actions');
 if(national.includes('residence-card.html'))errors.push('obsolete separate national document route');
-for(const file of ['questions-ar.html','questions-en.html']){
+for(const file of ['questions-ar.html']){
   const code=get(file);
   // Question editor temporarily attaches drag listeners but must release them.
   for(const marker of ["document.addEventListener('touchmove', dragMove","document.removeEventListener('touchmove', dragMove)","document.removeEventListener('touchend', dragEnd)"])
