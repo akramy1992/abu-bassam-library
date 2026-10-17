@@ -10,6 +10,24 @@ for(const file of ['web/index.html','web/app-security-runtime.js','web/security-
   assert.ok(fs.statSync(path.join(root,file)).size>100,file+' missing or empty');
 }
 assert.ok(html.includes('<script src="device-name-runtime.js"></script>'),'device bootstrap not loaded');
+if(process.env.ABU_BASSAM_DIAGNOSTIC_BUILD==='1'){
+  const config=JSON.parse(read('app.json')).expo;
+  assert.equal(config.android.package,'com.abubassam.librarycamera3.diagnostic');
+  assert.ok(config.android.blockedPermissions.includes('android.permission.INTERNET'));
+  assert.ok(!config.android.permissions.includes('INTERNET'));
+  assert.ok(native.includes("message.component === 'diagnostic-shell'"),'native startup must wait for diagnostic shell');
+  assert.ok(!native.includes("message.component === 'login-gate'"),'sandbox may not wait for login gate');
+  assert.ok(native.includes('IS_OFFLINE_DIAGNOSTIC && message.type === \'security\''),'all native security calls must fail in diagnostic');
+  assert.ok(native.includes("window.__ABU_BASSAM_NATIVE_SECURITY__ = false"),'native secure storage must not be exposed');
+  assert.ok(native.includes('allowUniversalAccessFromFileURLs={false}'),'file origin cannot access network');
+  assert.ok(device.includes('OFFLINE_DIAGNOSTIC_ONLY = true'),'diagnostic bootstrap must be compile-time isolated');
+  assert.ok(device.includes('mountOfflineDiagnostic();'),'visible local diagnostic touch controls required');
+  assert.ok(device.includes("if(OFFLINE_DIAGNOSTIC_ONLY){"),'must short-circuit production auth loader');
+  assert.ok(device.includes("if(!OFFLINE_DIAGNOSTIC_ONLY||document.getElementById('abuDiagnosticTouchInput'))return;"),'diagnostic controls must be idempotent');
+  assert.ok(native.includes('pointerEvents="box-none"'),'native probe overlay must not block WebView');
+  console.log('Offline no-login diagnostic safety checks passed: separate app ID, network denied, secure bridge disabled, login boot not loaded, touch inputs available.');
+  process.exit(0);
+}
 assert.ok(native.includes("message.type === 'webBootReady' && message.component === 'login-gate'"),'early boot message could bypass login');
 assert.ok(native.includes("message.type === 'webBootFailure'"),'missing web boot failure handling');
 assert.ok(native.includes('window.__ABU_BASSAM_SECURITY_READY__'),'load-end probe missing security check');
