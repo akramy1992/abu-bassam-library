@@ -231,20 +231,45 @@ function App() {
     try {
       const imagePages = typeof pages === 'string' ? JSON.parse(pages) : pages;
       if (!Array.isArray(imagePages) || !imagePages.length) throw new Error('لا توجد صور للحفظ');
-      const finalMime = String(mime || 'image/jpeg');
-      if (!finalMime.startsWith('image/')) throw new Error('صيغة الصور غير مدعومة');
+      if (imagePages.length > 20) throw new Error('الحد الأقصى لحفظ الدفعة 20 صورة');
+      const allowedMimes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+      const fallbackMime = String(mime || '').toLowerCase();
+      if (fallbackMime && !allowedMimes.has(fallbackMime)) throw new Error('صيغة الصور غير مدعومة');
+      let totalBase64Chars = 0;
+      const preparedPages = imagePages.map((item, index) => {
+        const source = String(item || '');
+        const marker = ';base64,';
+        const headerEnd = source.indexOf(marker);
+        if (!source.startsWith('data:image/') || headerEnd < 0) throw new Error('صيغة الملف غير مدعومة');
+        const parsed = splitDataUrl(source);
+        const itemMime = String(parsed.mime || fallbackMime).toLowerCase();
+        if (!allowedMimes.has(itemMime)) throw new Error('صيغة الصور غير مدعومة');
+        if (!/^[A-Za-z0-9+/]+={0,2}$/.test(parsed.base64)) throw new Error('بيانات الصورة غير صالحة');
+        if (parsed.base64.length > 40 * 1024 * 1024) throw new Error('حجم الصورة يتجاوز الحد المسموح');
+        totalBase64Chars += parsed.base64.length;
+        if (totalBase64Chars > 120 * 1024 * 1024) throw new Error('حجم الدفعة يتجاوز الحد المسموح');
+        const encodedNameMatch = /;name=([^;,]+)/i.exec(source.slice(0, headerEnd));
+        let requestedName = '';
+        if (encodedNameMatch) {
+          try { requestedName = decodeURIComponent(encodedNameMatch[1]); }
+          catch (_) { throw new Error('اسم الصورة غير صالح'); }
+        }
+        const fallbackName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}`;
+        const safeFileName = safeName((requestedName || fallbackName).slice(0, 120));
+        const extension = itemMime === 'image/png' ? 'png' : itemMime === 'image/webp' ? 'webp' : 'jpg';
+        const displayName = safeFileName.replace(/\.(?:jpe?g|png|webp)$/i, '') || fallbackName;
+        return { displayName, itemMime, base64: parsed.base64, extension };
+      });
       const initialUri = FileSystem.StorageAccessFramework.getUriForDirectoryInRoot('Pictures');
       const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(initialUri);
       if (!permission.granted) return;
       let saved = 0;
-      for (let index = 0; index < imagePages.length; index += 1) {
-        const parsed = splitDataUrl(imagePages[index]);
-        const displayName = `${safeName(prefix || 'Abu_Bassam_Page')}_${index + 1}_${Date.now()}`;
-        const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, displayName, finalMime || parsed.mime);
-        await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, parsed.base64, { encoding: FileSystem.EncodingType.Base64 });
+      for (const item of preparedPages) {
+        const uri = await FileSystem.StorageAccessFramework.createFileAsync(permission.directoryUri, item.displayName, item.itemMime);
+        await FileSystem.StorageAccessFramework.writeAsStringAsync(uri, item.base64, { encoding: FileSystem.EncodingType.Base64 });
         saved += 1;
       }
-      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صفحة داخل مجلد الصور الذي اخترته.`);
+      Alert.alert('تم الحفظ في المعرض', `تم حفظ ${saved} صورة داخل مجلد الصور الذي اخترته.`);
     } catch (error) { Alert.alert('تعذر حفظ الصفحات', String(error?.message || error)); }
   }, []);
 

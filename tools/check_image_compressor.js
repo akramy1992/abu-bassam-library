@@ -20,9 +20,8 @@ for(const m of [
   'window.parent?.Android?.savePagesToGallery','browserSave(r.name,r.dataUrl)','isImageFile'
 ])need(html,m,'image compressor');
 for(const m of ['SAFE_MAX_PIXELS=24_000_000','while(true)'])forbid(html,m,'image compressor');
-const patch=read(path.join(root,'scripts','patch-startup-stability.mjs'));
-for(const m of ['encodedNameMatch','decodeURIComponent(encodedNameMatch[1])','itemMime','imagePages.length > 20','requestedName || fallbackName','named mixed-format compressed image saving'])need(patch,m,'Android compressor patch');
+// The retired source-mutating patch script must stay absent. Verify the actual native bridge instead.
 const index=read(path.join(root,'index.js'));
-for(const m of ['encodedNameMatch','itemMime','requestedName || fallbackName','onRenderProcessGone','recoverWebRenderer'])need(index,m,'patched Android index');
+for(const m of ['encodedNameMatch','decodeURIComponent(encodedNameMatch[1])','itemMime','imagePages.length > 20','requestedName || fallbackName','allowedMimes','totalBase64Chars','preparedPages','onRenderProcessGone','recoverWebRenderer'])need(index,m,'native Android gallery and renderer');
 if(errors.length){process.stderr.write(errors.join('\n')+'\n');process.exit(1)}
 process.stdout.write('Image compressor checks passed: cumulative/per-file limits, 16MP memory ceiling, UI yielding, canvas release, drag/drop, reorder/delete, preview, cancellation, failure isolation, PNG/WebP preservation, print-quality guidance, original-derived names, browser fidelity, Android named mixed-format saving, and native WebView renderer recovery.\n');
