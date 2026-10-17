@@ -6,7 +6,7 @@ window.__ABU_APP_SECURITY_V1__=true;
 const $=id=>document.getElementById(id);
 const MAIN_USERNAME='akrama1992';
 const MAIN_EMAIL='akrama1992@gmail.com';
-const APP_VERSION='6.0.1';
+const APP_VERSION='6.0.2';
 const MAX_DEVICES=5;
 const DEVICE_ID_KEY='abuBassamLockedDeviceIdV5';
 const DEVICE_NAME_KEY='abuBassamLockedDeviceNameV5';
