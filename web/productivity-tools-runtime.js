@@ -11,6 +11,8 @@ function eraseDeprecatedEnglishData(){
   }
   try{
     const req=indexedDB.open('AbuBassamQuestionDraftV2');
+    // A fresh install must still initialize the shared Arabic draft store.
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('drafts'))req.result.createObjectStore('drafts',{keyPath:'id'})};
     req.onsuccess=()=>{const db=req.result;try{if(db.objectStoreNames.contains('drafts')){const tx=db.transaction('drafts','readwrite');tx.objectStore('drafts').delete('en');tx.oncomplete=()=>db.close();tx.onerror=()=>db.close()}else db.close()}catch(_){db.close()}};
   }catch(_){}
 }
