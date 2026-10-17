@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id);
-const APP_VERSION='6.0.2',BUILD_NUMBER='600',RELEASE_DATE='2026-09-29';
+const APP_VERSION='6.0.2',BUILD_NUMBER='602',RELEASE_DATE='2026-09-29';
 const APP_NAME='مكتبة أبو بسام',LIBRARY_NAME='مكتبة أبو بسام للتصوير والقرطاسية';
 const PROGRAMMER='أكرم حاتم الغزالي',PHONE='07829667521';
 const AUTO_SYNC_KEY='abuBassamVaultAutoSyncV4',SYNC_POLICY_KEY='abuBassamSyncPolicyV5',WA_KEY='abuBassamWhatsAppSettingsV5';
@@ -36,8 +36,23 @@ function renderThemes(){let box=$('abuSettingsThemes');if(!box)return;let curren
 function formatTime(value){try{return new Date(value).toLocaleString('ar-IQ')}catch(e){return'—'}}
 async function devices(){let list=[];try{if(window.AbuBassamDevices)list=await AbuBassamDevices.list()}catch(e){}if(!list.length)list=[{name:'أكرم',platform:'Android',last_seen:new Date().toISOString(),app_version:APP_VERSION,locked:true}];$('abuDeviceCount').textContent=list.length;$('abuDeviceList').innerHTML=list.map((device,index)=>{let last=Date.parse(device.last_seen||device.updated_at||0),online=last&&Date.now()-last<5*60*1000;return `<div class="abu-device"><div class="abu-device-icon">${/Windows/i.test(device.platform||'')?'🖥️':'📱'}</div><div><b>${esc(index===0?'أكرم (هذا الجهاز)':device.name||'الجهاز '+(index+1))}</b><small>${esc(device.platform||nativeInfo?.os||'Android')} • Android ${esc(nativeInfo?.androidVersion||'—')} • التطبيق ${esc(device.app_version||APP_VERSION)}<br>${online?'متصل الآن':'آخر مزامنة '+formatTime(device.last_seen||device.updated_at)}</small></div><span class="abu-device-lock">🔒 قراءة فقط</span></div>`}).join('')+(list.length===1?'<div class="abu-setting-note" style="text-align:center">لا توجد أجهزة أخرى متصلة حاليًا.</div>':'')}
 function loadControls(){let policy=read(SYNC_POLICY_KEY,{mode:'daily',wifiOnly:false});$('abuSyncMode').value=policy.mode||'daily';$('abuWifiOnly').checked=!!policy.wifiOnly;$('abuSettingsAutoSync').checked=localStorage.getItem(AUTO_SYNC_KEY)!=='0';let wa=read(WA_KEY,{enabled:true,phone:PHONE});$('abuWaEnabled').checked=wa.enabled!==false;$('abuWaPhone').value=wa.phone||PHONE}
-function open(){renderThemes();loadControls();$('abuSettingsSearch').value='';search('');$('abuSettingsModal').classList.add('show');devices();storage();refreshDeviceInfo()}
-function close(){$('abuSettingsModal').classList.remove('show')}
+let settingsOpenTimer=0;
+function open(){
+  const modal=$('abuSettingsModal');if(!modal)return;
+  if(modal.classList.contains('show'))return;
+  modal.classList.add('show');
+  // Render the modal before doing any device/storage enumeration; Android WebView
+  // used to synchronously read every large archived localStorage record on tap.
+  renderThemes();loadControls();$('abuSettingsSearch').value='';search('');
+  clearTimeout(settingsOpenTimer);
+  settingsOpenTimer=setTimeout(()=>{
+    if(!modal.classList.contains('show'))return;
+    refreshDeviceInfo();devices();
+    // Storage size is intentionally on-demand; large local archives must not
+    // stall the first settings frame or freeze the back/close button.
+  },90);
+}
+function close(){clearTimeout(settingsOpenTimer);$('abuSettingsModal')?.classList.remove('show')}
 function search(value){let q=String(value||'').trim().toLowerCase(),shown=0;document.querySelectorAll('#abuSettingsModal [data-settings-keywords]').forEach(section=>{let match=!q||(section.dataset.settingsKeywords+' '+section.textContent).toLowerCase().includes(q);section.hidden=!match;if(match)shown++});$('abuNoSettings')?.classList.toggle('show',shown===0)}
 function theme(key){if(typeof window.applyTheme==='function')window.applyTheme(key);renderThemes();log('تغيير الثيم',key)}
 function nativeOpen(url){if(window.Android&&Android.openExternal)return Android.openExternal(url);location.href=url}
