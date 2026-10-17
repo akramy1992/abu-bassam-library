@@ -24,10 +24,10 @@ import * as Sharing from 'expo-sharing';
 import { WebView } from 'react-native-webview';
 
 const APP_URL = 'file:///android_asset/library/index.html';
-const APP_VERSION = '6.0.0';
-const BUILD_NUMBER = '600';
+const APP_VERSION = '6.0.1';
+const BUILD_NUMBER = '601';
 const PRIVACY_CAPTURE_KEY = 'abu-bassam-private-screen';
-const STARTUP_WATCHDOG_MS = 9000;
+const STARTUP_WATCHDOG_MS = 25000;
 const BARCODE_TYPES = [
   'qr', 'ean13', 'ean8', 'code128', 'code39', 'code93', 'upc_a', 'upc_e',
   'datamatrix', 'pdf417', 'aztec', 'codabar', 'itf14',
@@ -117,7 +117,8 @@ function App() {
   const [cameraFrameKind, setCameraFrameKind] = useState('paper');
   const [webReady, setWebReady] = useState(false);
   const [webInstanceKey, setWebInstanceKey] = useState(0);
-  const [startupAttempts, setStartupAttempts] = useState(0);
+  const [startupError, setStartupError] = useState(null);
+  const rendererRestarts = useRef(0);
 
   const inject = useCallback((functionName, payload) => {
     const json = JSON.stringify(payload).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
@@ -130,13 +131,25 @@ function App() {
   const closeCamera = useCallback(() => {
     setCameraMode(null); setCameraReady(false); setCameraBusy(false); setBarcodeLocked(false); setTorch(false); setCameraFacing('back'); setCameraFrameKind('paper');
   }, []);
-  const recoverWebRenderer = useCallback((didCrash = false) => {
+  const retryStartup = useCallback(() => {
     closeCamera();
     setWebReady(false);
-    setStartupAttempts(0);
+    setStartupError(null);
     setWebInstanceKey((value) => value + 1);
-    if (didCrash) Alert.alert('تمت استعادة التطبيق', 'تعطل محرك العرض الداخلي وتمت إعادة إنشائه تلقائيًا.');
   }, [closeCamera]);
+  const recoverWebRenderer = useCallback(() => {
+    if (rendererRestarts.current >= 1) {
+      setWebReady(false);
+      setStartupError({ code: 'RENDERER_TERMINATED', message: 'تعطل محرك عرض الواجهة أكثر من مرة. لم نعد تشغيله مجددًا لحماية بياناتك.' });
+      return;
+    }
+    rendererRestarts.current += 1;
+    retryStartup();
+  }, [retryStartup]);
+  const retryStartupManually = useCallback(() => {
+    rendererRestarts.current = 0;
+    retryStartup();
+  }, [retryStartup]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -156,18 +169,13 @@ function App() {
   }, [inject, webReady]);
 
   useEffect(() => {
-    if (webReady) return undefined;
+    // HTML load or timeout must never expose content without a mounted login gate.
+    if (webReady || startupError) return undefined;
     const timer = setTimeout(() => {
-      if (startupAttempts < 1) {
-        setStartupAttempts((value) => value + 1);
-        webRef.current?.reload();
-        return;
-      }
-      setWebReady(true);
-      Alert.alert('تعذر إكمال بدء التشغيل', 'لم تفتح الواجهة ضمن الوقت المتوقع. أعد تشغيل التطبيق، وإذا تكررت المشكلة افحص ملفات التطبيق.');
+      setStartupError({ code: 'SECURITY_GATE_TIMEOUT', message: 'لم تؤكد واجهة تسجيل الدخول جاهزيتها خلال المهلة. لا تُحذف بيانات التطبيق؛ استخدم إعادة المحاولة.' });
     }, STARTUP_WATCHDOG_MS);
     return () => clearTimeout(timer);
-  }, [startupAttempts, webReady]);
+  }, [webInstanceKey, webReady, startupError]);
 
   const openCamera = useCallback(async (mode, frameKind = 'paper') => {
     try {
@@ -389,6 +397,17 @@ function App() {
 
   const onWebMessage = useCallback(async (event) => {
     let message; try { message = JSON.parse(event.nativeEvent.data); } catch (_) { return; }
+    // Ignore device-name-runtime's early boot signal: only the mounted login gate is ready.
+    if (message.type === 'webBootReady' && message.component === 'login-gate') {
+      setStartupError(null);
+      setWebReady(true);
+      return;
+    }
+    if (message.type === 'webBootFailure') {
+      setWebReady(false);
+      setStartupError({ code: 'SECURITY_GATE_ERROR', message: 'تعذر تحميل واجهة الدخول الآمنة. افحص ملفات التثبيت ثم أعد المحاولة.' });
+      return;
+    }
     if (message.type === 'openCamera') return openCamera(message.mode, message.frameKind);
     if (message.type === 'saveBase64') return saveBase64(message);
     if (message.type === 'saveToGallery') return saveToGallery(message);
@@ -414,12 +433,31 @@ function App() {
         key={webInstanceKey} ref={webRef} source={{ uri: APP_URL }} style={styles.webView} originWhitelist={['file://*','about:*']} javaScriptEnabled domStorageEnabled
         allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs mixedContentMode="never"
         setSupportMultipleWindows={false} mediaPlaybackRequiresUserAction={false}
-        injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE} onMessage={onWebMessage} onShouldStartLoadWithRequest={onShouldStartLoadWithRequest} onLoadEnd={() => setWebReady(true)}
-        onRenderProcessGone={(event) => recoverWebRenderer(!!event.nativeEvent?.didCrash)}
-        onContentProcessDidTerminate={() => recoverWebRenderer(true)}
-        onError={() => recoverWebRenderer(false)}
+        injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE} onMessage={onWebMessage} onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        onLoadEnd={() => webRef.current?.injectJavaScript(`(function(){try{if(window.__ABU_BASSAM_SECURITY_READY__ && document.getElementById('abuSecurityGate'))window.ReactNativeWebView.postMessage(JSON.stringify({type:'webBootReady',component:'login-gate'}));}catch(e){}})();true;`)}
+        onRenderProcessGone={recoverWebRenderer}
+        onContentProcessDidTerminate={recoverWebRenderer}
+        onError={(event) => {
+          const code = String(event.nativeEvent?.code ?? 'unknown').slice(0, 30);
+          setWebReady(false);
+          setStartupError({ code: 'WEBVIEW_LOAD_' + code, message: 'فشل فتح ملف واجهة التطبيق المحلي. قد تكون هناك مشكلة في محرك WebView أو في ملفات التثبيت.' });
+        }}
       />
-      {!webReady && <View style={styles.loading}><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري فتح مكتبة أبو بسام…</Text></View>}
+      {!webReady && <View style={styles.loading}>
+        {startupError ? (
+          <View style={styles.startupErrorCard}>
+            <Text style={styles.startupErrorTitle}>تعذر فتح مكتبة أبو بسام</Text>
+            <Text style={styles.loadingText}>{startupError.message}</Text>
+            <Text selectable style={styles.startupErrorCode}>رمز التشخيص: {startupError.code}</Text>
+            <TouchableOpacity style={styles.startupRetry} onPress={retryStartupManually} accessibilityRole="button" accessibilityLabel="إعادة محاولة فتح التطبيق">
+              <Text style={styles.startupRetryText}>إعادة المحاولة</Text>
+            </TouchableOpacity>
+            <Text style={styles.startupHelp}>لا تمسح بيانات التطبيق أو تعِد تثبيته قبل حفظ نسخة احتياطية.</Text>
+          </View>
+        ) : (
+          <><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري التحقق من واجهة الدخول الآمنة…</Text></>
+        )}
+      </View>
       {cameraMode && (
         <View style={styles.cameraOverlay}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cameraFacing} enableTorch={cameraFacing === 'back' && torch}
@@ -448,7 +486,13 @@ function App() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fffaf3' }, webView: { flex: 1, backgroundColor: '#fffaf3' },
   loading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fffaf3' },
-  loadingText: { color: '#5b4438', fontSize: 15, fontWeight: '700', marginTop: 14 },
+  loadingText: { color: '#5b4438', fontSize: 15, fontWeight: '700', marginTop: 14, textAlign: 'center' },
+  startupErrorCard: { width: '88%', maxWidth: 420, padding: 22, borderRadius: 18, backgroundColor: '#ffffff', alignItems: 'center', borderWidth: 1, borderColor: '#e6d5ca' },
+  startupErrorTitle: { color: '#9d3030', fontSize: 19, fontWeight: '800', textAlign: 'center' },
+  startupErrorCode: { marginTop: 14, fontSize: 12, color: '#60534b', textAlign: 'center' },
+  startupRetry: { marginTop: 22, backgroundColor: '#087f72', borderRadius: 12, paddingHorizontal: 26, paddingVertical: 14 },
+  startupRetryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  startupHelp: { marginTop: 16, fontSize: 11, color: '#76533e', textAlign: 'center' },
   cameraOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100, backgroundColor: '#000' },
   cameraShade: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 38 },
   cameraHeader: { width: '100%', paddingTop: 14, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
