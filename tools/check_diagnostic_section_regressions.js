@@ -1,0 +1,40 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
+const html=read('web/index.html'),host=read('web/productivity-tools-runtime.js');
+const android=read('index.js'),settings=read('web/app-settings-runtime.js');
+const device=read('web/device-name-runtime.js'),questions=read('web/questions-ar.html');
+const customer=read('web/customer-documents-runtime.js');
+for(const path of ['web/questions-en.html','web/questions-en-fixes-runtime.js'])
+  assert.equal(fs.existsSync(require('node:path').join(root,path)),false,'English editor must not ship: '+path);
+assert.ok(!host.includes('questionLangEn')&&!host.includes('questions-en.html'));
+assert.ok(!host.includes('injectEnglishRuntime'));
+assert.ok(host.includes("return 'questions-ar.html'"));
+assert.ok(host.includes("tx.objectStore('drafts').delete('en')"),'Remove only the English draft from shared IndexedDB');
+for(const marker of ['abuBassamQuestionDraftEnglishV1','abuQuestionPaperEnglishV2','abuQuestionAnswersVisibleEnV1'])
+  assert.ok(host.includes('localStorage.removeItem(key)')&&host.includes(marker),'English settings cleanup must be explicit');
+assert.ok(html.includes('id="addPhotosBtn"')&&html.includes('onclick="openPhotoPicker()"'));
+assert.ok(html.includes("function openPhotoPicker()"));
+assert.ok(settings.includes("document.querySelector('.top-actions #abuMainSettingsBtn')"),'Search and settings controls must be distinct');
+assert.ok(html.includes('id="abuMainSettingsBtn"'));
+assert.ok(!settings.includes("document.querySelector('.top-actions .icon-btn')"),'Do not overwrite the archive-search button');
+assert.ok(settings.includes('settingsOpenTimer=setTimeout'),'Defer expensive settings work');
+assert.ok(!settings.includes("modal.classList.add('show');devices();storage()"),'Settings must not scan all archive data synchronously');
+assert.ok(!android.includes('touchProbeLayer'),'A full-window diagnostic control obstructs back/navigation');
+assert.ok(device.includes('abuDiagnosticRendererSwitch'),'Alternative renderer action must be inline');
+assert.ok(android.includes("message.type === 'touchRendererToggle'"));
+assert.ok(host.includes("data.type==='abuQuestionFrameHeight'"),'Arabic iframe height must auto-resize');
+assert.ok(questions.includes("type:'abuQuestionFrameHeight'"),'Arabic editor must announce its actual height');
+assert.ok(questions.includes('overscroll-behavior-y: auto;'),'Question gestures must be able to escape iframe');
+const start=customer.indexOf('e.textContent=e.textContent.replace(');
+const end=customer.indexOf('});document.head.appendChild(e)}',start);
+assert.ok(start>=0&&end>start,'Customer styles need explicit scoped selectors');
+const transform=new Function('input',"const e={textContent:input};"+customer.slice(start,end+2)+";return e.textContent;");
+const scoped=transform('.add{display:none}.grid{display:grid}.cm{display:none}.pick{display:none}.view{display:none}');
+assert.ok(scoped.includes(':is(#custModal,#custPick,#custView) .add{'),'A generic customer .add CSS rule would hide photo upload');
+assert.ok(scoped.includes(':is(#custModal,#custPick,#custView) .grid{'),'Customer styles must not override primary photo settings');
+assert.ok(scoped.includes('#custModal{')&&scoped.includes('#custPick{')&&scoped.includes('#custView{'),'Customer sheets must still style correctly');
+require('@babel/parser').parse(android,{sourceType:'module',plugins:['jsx']});
+for(const src of ['web/device-name-runtime.js','web/productivity-tools-runtime.js','web/customer-documents-runtime.js','web/app-settings-runtime.js'])
+  require('@babel/parser').parse(read(src),{sourceType:'script'});
+console.log('Section regressions: English editor removed, Arabic preserved, photo upload visible, no duplicate settings, no touch overlay, customer CSS scoped and test parser passed.');
