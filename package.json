@@ -2,7 +2,7 @@
   "name": "abu-bassam-library-native",
   "version": "6.0.0",
   "private": true,
-  "main": "index.js",
+  "main": "index-auth.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
