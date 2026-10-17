@@ -23,7 +23,9 @@ import * as SecureStore from 'expo-secure-store';
 import * as Sharing from 'expo-sharing';
 import { WebView } from 'react-native-webview';
 
+// Dedicated, independently installed offline-only diagnostic application.
 const APP_URL = 'file:///android_asset/library/index.html';
+const IS_OFFLINE_DIAGNOSTIC = true;
 const APP_VERSION = '6.0.2';
 const BUILD_NUMBER = '602';
 const PRIVACY_CAPTURE_KEY = 'abu-bassam-private-screen';
@@ -40,6 +42,7 @@ const ANDROID_BRIDGE = `
     try { window.ReactNativeWebView.postMessage(JSON.stringify(Object.assign({ type: type }, payload || {}))); }
     catch (error) {}
   }
+  window.__ABU_BASSAM_DIAGNOSTIC_BUILD__ = true;
   window.Android = {
     saveBase64: function (name, mime, data) { send('saveBase64', { name: name, mime: mime, data: data }); },
     saveToGallery: function (name, mime, data) { send('saveToGallery', { name: name, mime: mime, data: data }); },
@@ -60,13 +63,13 @@ const ANDROID_BRIDGE = `
   window.__ABU_BASSAM_TOUCH_PROBE__ = false;
   window.AbuBassamNativeTouchProbe = function () {
     window.__ABU_BASSAM_TOUCH_PROBE__ = true;
-    var p = document.getElementById('abuLoginPass');
-    if (!p) { send('touchProbeResult', { issue: 'NO_LOGIN_INPUT' }); return; }
+    var p = document.getElementById('abuDiagnosticTouchInput');
+    if (!p) { send('touchProbeResult', { issue: 'NO_DIAGNOSTIC_INPUT' }); return; }
     var r = p.getBoundingClientRect();
     var top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
     send('touchProbeResult', {
       target: String(top && top.id || top && top.tagName || 'none').slice(0, 70),
-      expected: 'abuLoginPass',
+      expected: 'abuDiagnosticTouchInput',
       disabled: !!p.disabled,
       pointer: getComputedStyle(p).pointerEvents
     });
@@ -74,8 +77,7 @@ const ANDROID_BRIDGE = `
   ['pointerdown', 'touchstart', 'click'].forEach(function (kind) {
     document.addEventListener(kind, function (event) {
       if (!window.__ABU_BASSAM_TOUCH_PROBE__) return;
-      var gate = document.getElementById('abuSecurityGate');
-      if (!gate || !gate.contains(event.target)) return;
+      if (!document.body || !document.body.contains(event.target)) return;
       send('touchProbeEvent', {
         kind: kind,
         target: String(event.target && event.target.id || event.target && event.target.tagName || 'unknown').slice(0, 70)
@@ -83,7 +85,7 @@ const ANDROID_BRIDGE = `
     }, true);
   });
   window.__ABU_BASSAM_NATIVE_CAMERA__ = true;
-  window.__ABU_BASSAM_NATIVE_SECURITY__ = true;
+  window.__ABU_BASSAM_NATIVE_SECURITY__ = false;
 })();
 true;
 `;
@@ -201,7 +203,7 @@ function App() {
     // HTML load or timeout must never expose content without a mounted login gate.
     if (webReady || startupError) return undefined;
     const timer = setTimeout(() => {
-      setStartupError({ code: 'SECURITY_GATE_TIMEOUT', message: 'لم تؤكد واجهة تسجيل الدخول جاهزيتها خلال المهلة. لا تُحذف بيانات التطبيق؛ استخدم إعادة المحاولة.' });
+      setStartupError({ code: 'DIAGNOSTIC_TIMEOUT', message: 'لم تؤكد واجهة الفحص جاهزيتها. جرّب إعادة المحاولة دون حذف بيانات التطبيق.' });
     }, STARTUP_WATCHDOG_MS);
     return () => clearTimeout(timer);
   }, [webInstanceKey, webReady, startupError]);
@@ -426,11 +428,15 @@ function App() {
 
   const onWebMessage = useCallback(async (event) => {
     let message; try { message = JSON.parse(event.nativeEvent.data); } catch (_) { return; }
+    if (IS_OFFLINE_DIAGNOSTIC && message.type === 'security')
+      return replySecurity(message.requestId, false, null, 'DIAGNOSTIC_SECURITY_DISABLED');
+    if (IS_OFFLINE_DIAGNOSTIC && message.type === 'openExternal')
+      return Alert.alert('نسخة فحص محلية', 'الروابط الخارجية معطلة في هذه النسخة التجريبية.');
     if (message.type === 'touchProbeResult') {
       setTouchProbeMessage(message.issue
-        ? 'Android يستقبل اللمس، لكن مدخل كلمة المرور غير متوفر: ' + message.issue
+        ? 'Android يستقبل اللمس، لكن حقل تجربة اللمس غير موجود: ' + message.issue
         : message.target === message.expected && !message.disabled && message.pointer !== 'none'
-          ? 'رد WebView سليم. الآن المس كلمة المرور: إذا لم يتغير النص، فاللمس لا يصل إلى صفحة الويب.'
+          ? 'رد WebView سليم. الآن المس حقل الفحص: إذا لم يتغير النص، فاللمس لا يصل إلى صفحة الويب.'
           : 'فحص الحقل: العنصر المغطي ' + message.target + '، disabled=' + String(message.disabled) + '، pointer=' + String(message.pointer));
       return;
     }
@@ -438,15 +444,15 @@ function App() {
       setTouchProbeMessage('وصل ' + String(message.kind).slice(0, 20) + ' إلى WebView عند ' + String(message.target).slice(0, 70) + ' ✅');
       return;
     }
-    // Ignore device-name-runtime's early boot signal: only the mounted login gate is ready.
-    if (message.type === 'webBootReady' && message.component === 'login-gate') {
+    // Isolated diagnostic page acknowledgment, not a login bypass.
+    if (message.type === 'webBootReady' && message.component === 'diagnostic-shell') {
       setStartupError(null);
       setWebReady(true);
       return;
     }
     if (message.type === 'webBootFailure') {
       setWebReady(false);
-      setStartupError({ code: 'SECURITY_GATE_ERROR', message: 'تعذر تحميل واجهة الدخول الآمنة. افحص ملفات التثبيت ثم أعد المحاولة.' });
+      setStartupError({ code: 'DIAGNOSTIC_SHELL_ERROR', message: 'تعذر تهيئة واجهة الفحص المحلية. أعد المحاولة دون مسح بيانات التطبيقات.' });
       return;
     }
     if (message.type === 'openCamera') return openCamera(message.mode, message.frameKind);
@@ -468,13 +474,13 @@ function App() {
 
   const startTouchProbe = useCallback(() => {
     setTouchProbeOpen(true);
-    setTouchProbeMessage('زر Android يستجيب ✅ — أنتظر الآن رد WebView...');
+    setTouchProbeMessage('زر Android يستجيب ✅ — أنتظر الآن رد صفحة الفحص...');
     inject('AbuBassamNativeTouchProbe', {});
   }, [inject]);
   const switchWebViewLayer = useCallback(() => {
     const alternative = !useSoftwareWebView;
     setUseSoftwareWebView(alternative);
-    setTouchProbeMessage(alternative ? 'فعّلت وضع العرض البرمجي. انتظر فتح الدخول ثم جرّب الحقل.' : 'أعدت وضع العرض العتادي. انتظر فتح الدخول ثم جرّب الحقل.');
+    setTouchProbeMessage(alternative ? 'فعّلت وضع العرض البرمجي. جرّب حقل اللمس في أعلى الصفحة.' : 'أعدت وضع العرض العتادي. انتظر فتح الدخول ثم جرّب الحقل.');
     retryStartupManually();
   }, [retryStartupManually, useSoftwareWebView]);
 
@@ -488,7 +494,7 @@ function App() {
         allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs mixedContentMode="never"
         setSupportMultipleWindows={false} mediaPlaybackRequiresUserAction={false}
         injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE} onMessage={onWebMessage} onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-        onLoadEnd={() => webRef.current?.injectJavaScript(`(function(){try{if(window.__ABU_BASSAM_SECURITY_READY__ && document.getElementById('abuSecurityGate'))window.ReactNativeWebView.postMessage(JSON.stringify({type:'webBootReady',component:'login-gate'}));}catch(e){}})();true;`)}
+        onLoadEnd={() => webRef.current?.injectJavaScript(`(function(){try{if(window.__ABU_DIAGNOSTIC_READY__ && document.getElementById('abuDiagnosticTouchInput'))window.ReactNativeWebView.postMessage(JSON.stringify({type:'webBootReady',component:'diagnostic-shell'}));}catch(e){}})();true;`)}
         onRenderProcessGone={recoverWebRenderer}
         onContentProcessDidTerminate={recoverWebRenderer}
         onError={(event) => {
@@ -509,7 +515,7 @@ function App() {
             <Text style={styles.startupHelp}>لا تمسح بيانات التطبيق أو تعِد تثبيته قبل حفظ نسخة احتياطية.</Text>
           </View>
         ) : (
-          <><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري التحقق من واجهة الدخول الآمنة…</Text></>
+          <><ActivityIndicator size="large" color="#76533e" /><Text style={styles.loadingText}>جاري فتح واجهة الفحص دون تسجيل دخول…</Text></>
         )}
       </View>}
       {!cameraMode && webReady && (
@@ -566,7 +572,7 @@ const styles = StyleSheet.create({
   startupRetry: { marginTop: 22, backgroundColor: '#087f72', borderRadius: 12, paddingHorizontal: 26, paddingVertical: 14 },
   startupRetryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   startupHelp: { marginTop: 16, fontSize: 11, color: '#76533e', textAlign: 'center' },
-  touchProbeLayer: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', alignItems: 'flex-start', padding: 8, zIndex: 50, elevation: 50 },
+  touchProbeLayer: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: 38, paddingHorizontal: 8, zIndex: 50, elevation: 50 },
   touchProbePanel: { backgroundColor: '#ffffff', borderRadius: 12, width: 255, padding: 9, borderWidth: 1, borderColor: '#bba894', gap: 7 },
   touchProbeText: { color: '#251d16', fontSize: 12, textAlign: 'center' },
   touchProbeButton: { backgroundColor: '#096d65', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
