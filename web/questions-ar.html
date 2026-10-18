@@ -548,75 +548,55 @@
         }
 
         function setupDragAndResize(wrapper, moveHandle, resizeHandle) {
-            let isDragging = false, isResizing = false;
-            let startX, startY, startLeft, startTop, startWidth, startHeight;
+            // Keep pointer listeners on the active handle; never trap touch on document.
+            // Use an in-memory property so restoring saved HTML does not skip rebinding.
+            if (wrapper.__abuPointerHandlesBound) return;
+            wrapper.__abuPointerHandlesBound = true;
 
-            // تفعيل السحب فقط عند الضغط على الأيقونة ✥ لكي لا يتداخل مع الكتابة
-            if(moveHandle) {
-                moveHandle.addEventListener('mousedown', dragStart); 
-                moveHandle.addEventListener('touchstart', dragStart, {passive: false});
-            }
+            function bind(handle, mode) {
+                if (!handle) return;
+                handle.style.touchAction = 'none';
+                handle.addEventListener('pointerdown', function(event) {
+                    if (event.pointerType === 'mouse' && event.button !== 0) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const pointerId = event.pointerId;
+                    const startX = event.clientX, startY = event.clientY;
+                    const startLeft = wrapper.offsetLeft, startTop = wrapper.offsetTop;
+                    const startWidth = wrapper.offsetWidth, startHeight = wrapper.offsetHeight;
+                    const scale = Math.max(0.05, Number(currentScale) || 1);
+                    try { handle.setPointerCapture(pointerId); } catch (_) {}
 
-            function dragStart(e) {
-                e.preventDefault(); 
-                isDragging = true;
-                startX = e.touches ? e.touches[0].clientX : e.clientX; 
-                startY = e.touches ? e.touches[0].clientY : e.clientY;
-                startLeft = wrapper.offsetLeft; 
-                startTop = wrapper.offsetTop;
-                document.addEventListener('mousemove', dragMove); 
-                document.addEventListener('touchmove', dragMove, {passive: false});
-                document.addEventListener('mouseup', dragEnd); 
-                document.addEventListener('touchend', dragEnd);
+                    function move(e) {
+                        if (e.pointerId !== pointerId) return;
+                        e.preventDefault();
+                        const dx = (e.clientX - startX) / scale;
+                        const dy = (e.clientY - startY) / scale;
+                        if (mode === 'drag') {
+                            wrapper.style.left = (startLeft + dx) + 'px';
+                            wrapper.style.top = (startTop + dy) + 'px';
+                        } else {
+                            wrapper.style.width = Math.max(50, startWidth - dx) + 'px';
+                            wrapper.style.height = Math.max(50, startHeight + dy) + 'px';
+                        }
+                    }
+                    function end(e) {
+                        if (e.pointerId !== pointerId) return;
+                        handle.removeEventListener('pointermove', move);
+                        handle.removeEventListener('pointerup', end);
+                        handle.removeEventListener('pointercancel', end);
+                        handle.removeEventListener('lostpointercapture', end);
+                        try { if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId); } catch (_) {}
+                        if (typeof scheduleQuestionDraft === 'function') scheduleQuestionDraft();
+                    }
+                    handle.addEventListener('pointermove', move);
+                    handle.addEventListener('pointerup', end);
+                    handle.addEventListener('pointercancel', end);
+                    handle.addEventListener('lostpointercapture', end);
+                });
             }
-            function dragMove(e) {
-                if (!isDragging) return; 
-                e.preventDefault();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                wrapper.style.left = (startLeft + (clientX - startX) / currentScale) + 'px'; 
-                wrapper.style.top = (startTop + (clientY - startY) / currentScale) + 'px';
-            }
-            function dragEnd() { 
-                isDragging = false; 
-                document.removeEventListener('mousemove', dragMove); 
-                document.removeEventListener('touchmove', dragMove); 
-                document.removeEventListener('mouseup', dragEnd);
-                document.removeEventListener('touchend', dragEnd);
-            }
-
-            if(resizeHandle) {
-                resizeHandle.addEventListener('mousedown', resizeStart); 
-                resizeHandle.addEventListener('touchstart', resizeStart, {passive: false});
-            }
-
-            function resizeStart(e) {
-                e.preventDefault(); e.stopPropagation(); 
-                isResizing = true;
-                startX = e.touches ? e.touches[0].clientX : e.clientX; 
-                startY = e.touches ? e.touches[0].clientY : e.clientY;
-                startWidth = wrapper.offsetWidth; 
-                startHeight = wrapper.offsetHeight;
-                document.addEventListener('mousemove', resizeMove); 
-                document.addEventListener('touchmove', resizeMove, {passive: false});
-                document.addEventListener('mouseup', resizeEnd); 
-                document.addEventListener('touchend', resizeEnd);
-            }
-            function resizeMove(e) {
-                if (!isResizing) return; 
-                e.preventDefault();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                wrapper.style.width = Math.max(50, startWidth - (clientX - startX) / currentScale) + 'px'; 
-                wrapper.style.height = Math.max(50, startHeight + (clientY - startY) / currentScale) + 'px';
-            }
-            function resizeEnd() { 
-                isResizing = false; 
-                document.removeEventListener('mousemove', resizeMove); 
-                document.removeEventListener('touchmove', resizeMove); 
-                document.removeEventListener('mouseup', resizeEnd);
-                document.removeEventListener('touchend', resizeEnd);
-            }
+            bind(moveHandle, 'drag');
+            bind(resizeHandle, 'resize');
         }
     </script>
     <script>
