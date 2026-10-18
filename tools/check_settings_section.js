@@ -30,5 +30,15 @@ need(enh,'AbuBassamDeviceRegistry?.count','device registry count');
 no(enh,".from('abu_bassam_devices')",'device count direct table access');
 const loader=read(path.join(web,'device-name-runtime.js'));
 for(const marker of ['settings-corrections-runtime.js','wifi-sync-guard-runtime.js','loadSettingsCorrections()','loadWifiSyncGuard()'])need(loader,marker,'settings loader');
+const appSettings=read(path.join(web,'app-settings-runtime.js'));
+const header=read(path.join(web,'feature-recovery-runtime.js'));
+const operations=read(path.join(web,'secure-sync-runtime.js'));
+const security=read(path.join(web,'app-security-runtime.js'));
+no(appSettings,"button.textContent='⚙️'",'settings must not replace search button');
+need(appSettings,"function build(){if($('abuSettingsModal'))return",'settings dialog must not duplicate');
+need(header,'top:max(12px','search/settings/history must stay above old position');
+need(operations,'abuOperationsTopBtn','operations shortcut must be idempotent');
+no(enh,'new MutationObserver','settings must not watch whole page');
+no(security,'observer.observe(document.body','security must not watch whole page');
 if(errors.length){process.stderr.write(errors.join('\n')+'\n');process.exit(1)}
 process.stdout.write('Settings checks passed: authenticated device count, exact current-device labeling, no fake devices, privacy capture control, broader storage estimate, honest Google sharing, safe reset scope, fail-closed Wi-Fi-only sync, and printer profile offsets/borderless behavior.\n');
