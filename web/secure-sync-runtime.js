@@ -306,11 +306,14 @@
 
   function buildOperations() {
     const top = document.querySelector('.top-actions');
-    if (top) {
+    if (top && !document.getElementById('abuOperationsTopBtn')) {
       const button = document.createElement('button');
+      button.id = 'abuOperationsTopBtn';
+      button.type = 'button';
       button.className = 'icon-btn';
       button.textContent = '🧾';
       button.title = 'سجل العمليات';
+      button.setAttribute('aria-label', 'سجل العمليات');
       button.onclick = openOperations;
       top.appendChild(button);
     }
